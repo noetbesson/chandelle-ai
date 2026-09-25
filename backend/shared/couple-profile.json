@@ -1,0 +1,11 @@
+{
+  "likes": [
+    "japanese_food",
+    "live_music"
+  ],
+  "dislikes": [
+    "formal_restaurants"
+  ],
+  "budget_per_person_max": 70,
+  "novelty_preference": 0.8
+}
