@@ -44,3 +44,6 @@
 ## Transfert de discovery — 26 septembre 2026
 
 31. Ajouter la collecte OpenAI Responses dans `C_discovery` à côté des services V1/V2 existants. La collecte reste une commande manuelle, désactivée sans `DISCOVERY_ENABLE_LIVE=true`, plafonnée à cinq activités et une requête Responses par exécution. `data/activities.json` est un cache local validé selon `backend/shared/activity.json` ; les scores personnalisés restent `null` dans ce cache. Le ranking du service V2 existant reste distinct. Conserver `service.py`, `legacy.py` et les tests historiques. Aligner la dépendance sur OpenAI 3 déjà présent et ajouter `python-dotenv`. Le transfert du cache ne branche pas encore ce cache sur le catalogue V2 servi par l'API.
+
+
+31. Discovery réel : exposer le cache Activity validé via `GET /api/v2/activities/real` et l’afficher séparément des 76 exemples fictifs. Aucun chargement web au démarrage ou à l’affichage. Les fiches sans prix, durée ou coordonnées restent consultables avec lien source, mais ne deviennent pas des candidats E : aucune donnée de planification n’est inventée.

@@ -70,3 +70,8 @@ contrats et validations de ce transfert.
 ## Discovery — synchronisation du 26 septembre 2026
 
 La branche locale `feature/discovery` intègre le contrat Activity, `.env.example` et le code de collecte OpenAI. Le cache local contient quatre activités vérifiées issues du second test limité à cinq résultats. La recherche live reste désactivée dans `.env` ; le catalogue V2 n’utilise pas encore ce cache et continue de proposer des exemples fictifs.
+
+
+## Discovery visible dans le frontend
+
+La page Discover lit maintenant `/api/v2/activities/real` et affiche les quatre fiches du cache local, avec lien vers leur page source et mention de vérification des horaires. Le catalogue fictif reste disponible pour composer les programmes. Les fiches réelles ne sont pas encore planifiables faute de prix, durée et coordonnées vérifiés ; aucun appel OpenAI n’est déclenché par l’interface.

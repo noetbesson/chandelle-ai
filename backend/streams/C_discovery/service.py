@@ -15,6 +15,31 @@ from backend.streams.E_orchestrator.models import CandidateActivity, TimeWindow
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from pydantic import ValidationError
+
+from backend.integrations.urls import public_url
+from backend.streams.C_discovery.data import load_activities
+from backend.streams.C_discovery.normalizers.models import Activity
+
+
+def cached_real_activities():
+    """Read the reviewed local cache for browsing; never start live discovery."""
+    try:
+        records = load_activities()
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+    if not isinstance(records, list):
+        return []
+    activities = []
+    for record in records:
+        try:
+            activity = Activity.model_validate(record)
+            if activity.website and public_url(str(activity.website)):
+                activities.append(activity.model_dump(mode='json'))
+        except (ValidationError, TypeError, ValueError):
+            continue
+    return activities
+
 
 def _now():
     return datetime.now(timezone.utc).isoformat()

@@ -135,3 +135,8 @@ de 14 jours, a été écartée.
 Le schéma et le prompt demandent désormais une URL HTTPS exacte et interdisent
 de transformer une date sans horaire en minuit. Ces changements passent les
 tests locaux, mais n'ont pas encore été revérifiés par un appel live.
+
+
+## Affichage local dans la démo
+
+La page Discover lit `GET /api/v2/activities/real`, qui revalide ce cache local. Les fiches réelles sont affichées avec leur site source, séparément des exemples fictifs. Elles ne sont pas encore proposées dans les programmes : leur prix, durée ou coordonnées peuvent être inconnus. La visite de cette page ne déclenche aucun appel OpenAI.
