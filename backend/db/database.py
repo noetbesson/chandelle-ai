@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS v2_runs(id TEXT PRIMARY KEY,couple_id TEXT NOT NULL,p
 CREATE TABLE IF NOT EXISTS v2_conversations(id TEXT PRIMARY KEY,couple_id TEXT NOT NULL,user_id TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS v2_messages(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,user_id TEXT NOT NULL,content TEXT NOT NULL,created_at TEXT NOT NULL);
 INSERT OR IGNORE INTO v2_schema(version) VALUES(1);
+CREATE TABLE IF NOT EXISTS v2_availability(user_id TEXT PRIMARY KEY REFERENCES v2_users(id),couple_id TEXT NOT NULL REFERENCES v2_couples(id),payload TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS v2_extensions(name TEXT PRIMARY KEY,version INTEGER NOT NULL,applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('peer_merge',1);
 '''
 
 class ManagedConnection(sqlite3.Connection):

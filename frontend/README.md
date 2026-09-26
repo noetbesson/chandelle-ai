@@ -1,36 +1,19 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Interface Chandelle
 
-## Getting Started
+La SPA active utilise les modules JavaScript natifs, sans Next.js ni build npm.
+FastAPI sert `app/index.html` à `/` et `/app`, et les ressources à `/v2-static`.
 
-First, run the development server:
+| Chemin | Rôle |
+| --- | --- |
+| `app/index.html` | Document d’entrée |
+| `app/app.mjs` | Navigation, onboarding et parcours principaux |
+| `app/experiences.mjs` | Inspirations, disponibilités, comparaison et export |
+| `app/style.css` | Styles de l’interface |
+| `tests/` | Tests JavaScript sans navigateur ni dépendances npm |
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Depuis la racine : `bash scripts/run.sh`, puis http://127.0.0.1:8000.
+Les contrôles complets se lancent avec `bash scripts/check.sh`.
+Le parcours API de l’interface est dans `scripts/verify_frontend_api.py`.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+La V1 reste accessible à `/v1/demo` ; ses ressources sont dans
+`backend/api/static/`. Voir [l’architecture](../docs/v2/ARCHITECTURE.md).

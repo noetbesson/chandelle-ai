@@ -1,91 +1,245 @@
-"""Deterministic local filtering and couple-aware candidate scoring."""
+"""Persistent internal demo catalog and explainable, consent-scoped discovery.
+
+Fairness = .60 * min(A, B) + .40 * mean(A, B). Hard constraints are
+applied before ranking; history, distance and category diversity are penalties.
+Only the memory service's consent-filtered planning context enters this layer.
+"""
+
 
 from __future__ import annotations
-
+import json
+import math
 import re
-from datetime import datetime, timedelta
-
-from backend.streams.B_memory.models import CoupleProfile
+from datetime import datetime, timedelta, timezone
 from backend.streams.E_orchestrator.models import CandidateActivity, TimeWindow
-
-from .models import ActivityListing, DiscoveryConstraints
-from .repository import ActivityRepository
-
-
-def _normalize(value: str) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"[^\w]+", " ", value.casefold())).strip()
+from datetime import datetime, timedelta
+from pathlib import Path
 
 
-def _contains(terms: str, needle: str) -> bool:
-    token = _normalize(needle)
-    return bool(token and re.search(r"(?<!\w)" + re.escape(token) + r"(?!\w)", terms))
+def _now():
+    return datetime.now(timezone.utc).isoformat()
 
 
-def _terms(candidate: CandidateActivity) -> str:
-    return _normalize(" ".join([candidate.name, candidate.type, *candidate.tags]))
+def _normal(value):
+    from backend.streams.H_conversation.service import normalize
+    return re.sub(r"[^\w]+", " ", normalize(value)).strip()
 
 
-def _slot(listing: ActivityListing, window: TimeWindow) -> tuple[datetime, datetime]:
-    candidate = listing.candidate
-    start = datetime.combine(window.start.date(), datetime.strptime(candidate.start, "%H:%M").time(),
-                             window.start.tzinfo)
-    if window.end.date() > window.start.date() and start < window.start:
-        start += timedelta(days=1)
-    end = datetime.combine(start.date(), datetime.strptime(candidate.end, "%H:%M").time(),
-                           window.start.tzinfo)
-    if end <= start:
-        end += timedelta(days=1)
-    return start, end
+def _matches(terms, value):
+    value={'loud spaces':'loud','crowds':'social'}.get(str(value).casefold(),value)
+    return bool(_normal(value)) and f" {_normal(value)} " in f" {terms} "
 
 
-def _score(candidate: CandidateActivity, profile: CoupleProfile) -> CandidateActivity:
-    terms = _terms(candidate)
-    shared = any(_contains(terms, tag) for tag in profile.shared_interests)
-    recent = any(_contains(terms, name) for name in profile.recent_dates)
-
-    def person_score(person) -> float:
-        individual = person is not None and any(_contains(terms, tag) for tag in person.interests)
-        return min(1.0, candidate.match_score + (0.12 if shared else 0) +
-                   (0.18 if individual else 0))
-
-    a = person_score(profile.user_a)
-    b = person_score(profile.user_b)
-    novelty_penalty = 0.16 * profile.desired_novelty if recent else 0
-    rank = max(0.0, min(1.0, 0.55 * min(a, b) + 0.45 * (a + b) / 2 - novelty_penalty))
-    return candidate.model_copy(update={"match_score": round(rank, 4),
-                                        "user_a_score": round(a, 4),
-                                        "user_b_score": round(b, 4)})
+def _list(value):
+    if isinstance(value, list):
+        return value
+    return [value] if isinstance(value, str) else []
 
 
-class DiscoveryService:
-    def __init__(self, repository: ActivityRepository):
-        self.repository = repository
+def _distance(location, origin):
+    lat1, lat2 = map(math.radians, (location['lat'], origin['lat']))
+    dlat = lat2-lat1
+    dlng = math.radians(origin['lng']-location['lng'])
+    a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlng/2)**2
+    return 6371 * 2 * math.asin(min(1, math.sqrt(a)))
 
-    def discover(self, profile: CoupleProfile, time_window: TimeWindow,
-                 constraints: DiscoveryConstraints | None = None) -> list[CandidateActivity]:
-        rules = constraints or DiscoveryConstraints()
-        budget_limits = [value for value in (profile.typical_budget, rules.max_total_budget)
-                         if value is not None]
-        budget = min(budget_limits) if budget_limits else None
-        allowed_types = {_normalize(value) for value in rules.include_types}
-        required_tags = {_normalize(value) for value in rules.required_tags}
-        excluded_tags = {_normalize(value) for value in rules.excluded_tags}
-        dislikes = [*profile.dislikes,
-                    *(profile.user_a.dislikes if profile.user_a else []),
-                    *(profile.user_b.dislikes if profile.user_b else [])]
-        results: list[CandidateActivity] = []
-        for listing in self.repository.list_activities():
-            item = listing.candidate
-            start, end = _slot(listing, time_window)
-            tags = {_normalize(tag) for tag in item.tags}
-            terms = _terms(item)
-            if (start < time_window.start or end > time_window.end or
-                    start.weekday() not in listing.weekdays or
-                    (budget is not None and 2 * item.price_per_person > budget) or
-                    (allowed_types and _normalize(item.type) not in allowed_types) or
-                    not required_tags.issubset(tags) or bool(excluded_tags & tags) or
-                    any(_contains(terms, term) for term in dislikes)):
+
+def demo_catalog():
+    """Fictional experiences, never represented as verified businesses."""
+    categories = [
+        ('food', 'Seasonal tasting table', 24, ['vegetarian', 'vegan', 'intimate'], True),
+        ('culture', 'Small gallery wander', 10, ['art', 'calm', 'quiet'], True),
+        ('concerts', 'Acoustic listening session', 18, ['music', 'social', 'loud'], True),
+        ('cinema', 'Independent film evening', 12, ['film', 'calm', 'quiet'], True),
+        ('outdoors', 'Riverside discovery walk', 0, ['nature', 'walking', 'calm'], False),
+        ('sport', 'Playful movement workshop', 16, ['active', 'energetic'], True),
+        ('workshops', 'Clay and colour studio', 28, ['creative', 'art', 'intimate'], True),
+        ('nightlife', 'Rooftop music hour', 20, ['music', 'social', 'loud'], False),
+        ('home', 'At-home recipe adventure', 8, ['vegetarian', 'vegan', 'intimate', 'quiet'], True),
+        ('travel', 'Neighbourhood mini escape', 14, ['walking', 'nature', 'novel'], False),
+    ]
+    slots = [('10:00', '11:00'), ('15:00', '16:00'), ('19:00', '20:00'), ('21:00', '22:00')]
+    neighborhoods = ['Canal', 'Rive gauche', 'Marais', 'Bastille']
+    rows = []
+    for i, (category, title, price, tags, indoor) in enumerate(categories):
+        for j, (start, end) in enumerate(slots):
+            rows.append({
+                'id': f'demo_{category}_{j+1}', 'title': f'{title} · {neighborhoods[j]}',
+                'description': 'Fictional internal demo experience for exploring Chandelle. No real venue or availability is claimed.',
+                'category': category, 'subcategory': tags[0], 'tags': tags,
+                'price_per_person': price + j * 2 if price else 0, 'currency': 'EUR',
+                'duration_minutes': 60, 'location': {'lat': 48.855+i*.001, 'lng': 2.342+j*.002},
+                'address': 'Illustrative Paris location; no real venue', 'neighborhood': neighborhoods[j],
+                'indoor': indoor, 'weather_sensitive': not indoor,
+                'accessibility': {'wheelchair': category not in ['sport', 'travel'], 'step_free': category not in ['sport', 'travel'], 'quiet': 'quiet' in tags, 'seating': category not in ['sport','travel','outdoors']},
+                'weekdays': list(range(7)), 'start': start, 'end': end,
+                'opening_windows': [{'start': start, 'end': end}], 'available': True,
+                'availability_source': 'internal_demo_unverified', 'last_verified_at': None,
+                'booking_url': None, 'media': [], 'popularity': .5, 'rating': None,
+                'source': 'Chandelle fictional internal catalog', 'provider': 'internal', 'demo': True,
+                'hard_constraints': [], 'embedding_metadata': None,
+            })
+    return rows
+
+
+class CatalogService:
+    def __init__(self, db, memory):
+        self.db, self.memory = db, memory
+
+    def seed(self):
+        rows = demo_catalog()
+        with self.db.connect() as con:
+            con.executemany('INSERT OR IGNORE INTO v2_activities(id,payload) VALUES (?,?)',
+                            [(row['id'], json.dumps(row)) for row in rows])
+        return len(rows)
+
+    def browse(self, query='', category=None, limit=30, offset=0):
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError('limit must be 1–100 and offset must be nonnegative')
+        with self.db.connect() as con:
+            rows = [json.loads(row['payload']) for row in con.execute('SELECT payload FROM v2_activities ORDER BY id')]
+        words = _normal(query).split()
+        rows = [row for row in rows if (not category or row['category'] == category)
+                and all(_matches(_normal(' '.join([row['title'], row['description'], row['category'], *row['tags']])), word) for word in words)]
+        return {'items': rows[offset:offset+limit], 'total': len(rows), 'limit': limit, 'offset': offset}
+
+    def get(self, activity_id):
+        with self.db.connect() as con:
+            row = con.execute('SELECT payload FROM v2_activities WHERE id=?', (activity_id,)).fetchone()
+        if not row:
+            raise KeyError(activity_id)
+        return json.loads(row['payload'])
+
+    def set_state(self, user_id, activity_id, state):
+        if state not in {'saved', 'liked', 'disliked', 'rejected', 'neutral'}:
+            raise ValueError('Unknown activity state')
+        self.get(activity_id)
+        with self.db.connect() as con:
+            con.execute('INSERT INTO v2_activity_states(user_id,activity_id,state,updated_at) VALUES (?,?,?,?) '
+                        'ON CONFLICT(user_id,activity_id) DO UPDATE SET state=excluded.state,updated_at=excluded.updated_at',
+                        (user_id, activity_id, state, _now()))
+        return {'activity_id': activity_id, 'state': state}
+
+    def record_state(self,couple_id,user_id,aid,state):
+        result=self.set_state(user_id,aid,state)
+        activity=self.get(aid)
+        previous=[f for f in self.memory.list_facts(couple_id,'PERSON',user_id,user_id) if f['key']=='activity:'+aid]
+        if state in ('liked','saved','disliked','rejected'):
+            self.memory.ingest(couple_id,'PERSON',user_id,user_id,'dislikes' if state in ('disliked','rejected') else 'interests','activity:'+aid,{'values':[activity['category']]},'COUPLE_RECOMMENDATION','activity_feedback',supersedes=previous[0]['id'] if previous else None)
+            for old in previous[1:]:self.memory.delete(old['id'],user_id)
+        else:
+            for old in previous:self.memory.delete(old['id'],user_id)
+        return result
+
+    def discover(self, couple_id, time_window, budget=None, categories=None, radius_km=None, limit=30, query=''):
+        window = TimeWindow.model_validate(time_window) if isinstance(time_window, dict) else time_window
+        if limit < 1 or limit > 100 or (budget is not None and budget < 0) or (radius_km is not None and radius_km < 0):
+            raise ValueError('Invalid discovery limit, budget or radius')
+        context = self.memory.planning_context(couple_id)
+        profiles = [context.get('person_a', {}), context.get('person_b', {}), context.get('couple', {})]
+        budgets = [budget] if budget is not None else []
+        for profile in profiles:
+            value = profile.get('budget')
+            if isinstance(value, dict) and not value.get('flexible') and value.get('max') is not None:
+                budgets.append(float(value['max']) * (2 if value.get('unit', 'person') == 'person' else 1))
+            elif isinstance(value, (float, int)):
+                budgets.append(float(value))
+        cap = min(budgets) if budgets else None
+        with self.db.connect() as con:
+            members = [row['user_id'] for row in con.execute('SELECT user_id FROM v2_memberships WHERE couple_id=? ORDER BY role', (couple_id,))]
+            states = {uid: {row['activity_id']: row['state'] for row in con.execute('SELECT activity_id,state FROM v2_activity_states WHERE user_id=?', (uid,))} for uid in members}
+            history = [json.loads(row['payload']) for row in con.execute("SELECT payload FROM v2_plans WHERE couple_id=? AND status='completed'", (couple_id,))]
+            catalog = [json.loads(row['payload']) for row in con.execute('SELECT payload FROM v2_activities ORDER BY id')]
+        seen = {activity['id'] for plan in history for activity in plan.get('activities', [])}
+        origin = profiles[2].get('location') or {'lat': 48.8566, 'lng': 2.3522}
+        rows = []
+        for activity in catalog:
+            terms = _normal(' '.join([activity['title'], activity['category'], *activity['tags']]))
+            start = datetime.combine(window.start.date(), datetime.strptime(activity['start'], '%H:%M').time(), window.start.tzinfo)
+            if start < window.start and window.end.date() > window.start.date():
+                start += timedelta(days=1)
+            end = start + timedelta(minutes=activity['duration_minutes'])
+            distance = _distance(activity['location'], origin)
+            if (activity.get('price_per_person') is None or not activity.get('available', True) or start < window.start or end > window.end or start.weekday() not in activity['weekdays']
+                    or (cap is not None and activity['price_per_person']*2 > cap)
+                    or (categories and activity['category'] not in categories)
+                    or (radius_km is not None and distance > radius_km)
+                    or any(state.get(activity['id']) in {'disliked', 'rejected'} for state in states.values())):
                 continue
-            results.append(_score(item, profile))
-        results.sort(key=lambda item: (-item.match_score, item.id))
-        return results[:rules.limit]
+            excluded = False
+            for profile in profiles:
+                constraints = profile.get('constraints') or {}
+                if not isinstance(constraints, dict):
+                    constraints = {}
+                dislikes = _list(profile.get('dislikes'))
+                days = constraints.get('days') or []
+                names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                day_allowed = not days or start.weekday() in days or names[start.weekday()] in [str(x).lower() for x in days]
+                if (any(_matches(terms, value) for value in dislikes) or not day_allowed
+                        or any(not activity['accessibility'].get(value, False) for value in _list(constraints.get('accessibility')))
+                        or (activity['category'] in {'food', 'home'} and any(not _matches(terms, value) for value in _list(constraints.get('dietary'))))
+                        or (constraints.get('travel_minutes') is not None and distance / 4 * 60 > float(constraints['travel_minutes']))):
+                    excluded = True
+            if excluded:
+                continue
+            scores = []
+            for index, profile in enumerate(profiles[:2]):
+                interests = _list(profile.get('interests'))
+                matches = sum(profile.get('interest_weights',{}).get(value,1)*_matches(terms, value) for value in interests)
+                state = states.get(members[index], {}).get(activity['id']) if index < len(members) else None
+                scores.append(min(1, .45 + min(.4, matches*.2) + (.1 if state in {'saved', 'liked'} else 0)))
+            fairness = .6*min(scores) + .4*sum(scores)/2
+            novelty = float(profiles[2].get('novelty', .5) or 0)
+            novelty_penalty = .2*novelty if activity['id'] in seen else 0
+            distance_penalty = min(.15, distance*.015)
+            shared_bonus = .05 if any(_matches(terms, value) for value in _list(profiles[2].get('interests'))) else 0
+            query_bonus = .08 if query and any(_matches(terms, value) for value in _normal(query).split()) else 0
+            score = max(0, min(1, fairness + shared_bonus + query_bonus - novelty_penalty - distance_penalty))
+            candidate = CandidateActivity(id=activity['id'], type=activity['category'], name=activity['title'],
+                start=activity['start'], end=activity['end'], price_per_person=activity['price_per_person'],
+                location=activity['location'], tags=activity['tags'], booking_url=activity['booking_url'],
+                match_score=score, user_a_score=scores[0], user_b_score=scores[1])
+            rows.append({'activity': activity, 'candidate': candidate.model_dump(mode='json'),
+                         'person_a_score': scores[0], 'person_b_score': scores[1], 'couple_score': score,
+                         'components': {'fairness': fairness, 'shared_bonus': shared_bonus, 'query_bonus': query_bonus,
+                                        'novelty_penalty': novelty_penalty, 'distance_penalty': distance_penalty, 'distance_km': round(distance, 2), 'diversity_penalty': 0},
+                         'evidence': ['Consent-filtered preferences from both member profiles and the couple profile.',
+                                      f"Fictional internal catalog; {activity['price_per_person']*2:g} EUR for two; {activity['duration_minutes']} minutes.",
+                                      'Previous completed experience reduces novelty.' if novelty_penalty else 'No completed occurrence in local history.']})
+        selected, counts = [], {}
+        while rows and len(selected) < limit:
+            rows.sort(key=lambda row: (-(row['couple_score'] - .035*counts.get(row['activity']['category'], 0)), row['activity']['id']))
+            row = rows.pop(0)
+            category = row['activity']['category']
+            penalty = .035*counts.get(category, 0)
+            row['components']['diversity_penalty'] = penalty
+            row['couple_score'] = round(max(0, row['couple_score']-penalty), 6)
+            row['candidate']['match_score'] = row['couple_score']
+            selected.append(row)
+            counts[category] = counts.get(category, 0)+1
+        return selected
+
+
+
+
+def seed_peer_catalog(db):
+    path=Path(__file__).resolve().parents[3]/'mocks'/'peer'/'catalogue.json'
+    mapping={'restaurant':'food','concert':'concerts','atelier':'workshops','balade':'outdoors','bar':'nightlife','domicile':'home','escapade':'travel'}
+    translations={'japonais':'japanese','calme':'quiet','vegetarien':'vegetarian','italien':'italian','musique':'music','bruyant':'loud','creatif':'creative','balade':'walking'}
+    result=[]
+    for index,(title,kind,price,duration,tags,area) in enumerate(json.loads(path.read_text()),1):
+        category=mapping.get(kind,kind)
+        start={'concerts':'21:00','nightlife':'22:30','culture':'21:00'}.get(category,'19:00')
+        end=(datetime.strptime(start,'%H:%M')+timedelta(minutes=duration)).strftime('%H:%M')
+        result.append({'id':f'peer_{index:02}','title':title,'description':'Exemple fictif du second projet Chandelle. Prix et créneau de démonstration ; aucune offre réservable.',
+                       'category':category,'tags':sorted(set(tags+[translations[t] for t in tags if t in translations])),
+                       'price_per_person':price,'currency':'EUR','duration_minutes':duration,
+                       'location':{'lat':48.864+((index-1)%3)*.004,'lng':2.354+((index-1)%4)*.004},
+                       'address':f'Lieu fictif · {area}','neighborhood':area,'indoor':category not in ('outdoors','travel'),
+                       'weather_sensitive':category in ('outdoors','travel'),'accessibility':{},'weekdays':list(range(7)),
+                       'start':start,'end':end,'available':index!=35,'availability_source':'peer_demo_unverified',
+                       'last_verified_at':None,'booking_url':None,'source':'Catalogue synthétique du projet ami',
+                       'provider':'internal','demo':True,'media':[],'popularity':.5,'rating':None})
+    with db.connect() as con:
+        con.executemany('INSERT OR IGNORE INTO v2_activities VALUES(?,?)',[(r['id'],json.dumps(r,ensure_ascii=False)) for r in result])
+    return len(result)

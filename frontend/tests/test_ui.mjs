@@ -1,0 +1,45 @@
+// Browserless behavior checks; no network or package installation required.
+import assert from 'node:assert/strict';
+const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+let sequence=0;
+async function boot(saved,responses){
+  const calls=[];const listeners={};const app={innerHTML:''};const notice={};
+  globalThis.document={querySelector(selector){return selector==='#app'?app:selector==='#notice'?notice:null},querySelectorAll(){return[]},addEventListener(type,callback){listeners[type]=callback}};
+  globalThis.localStorage={getItem(){return saved?JSON.stringify(saved):null},setItem(){}};
+  globalThis.fetch=async(url,options)=>{calls.push({url,options});const data=responses[url];assert.notEqual(data,undefined,'Unexpected API request: '+url);return{ok:true,status:200,json:async()=>data}};
+  await import('../app/app.mjs?test='+sequence++);await tick();
+  return{app,calls,listeners,async click(action,id){const button={dataset:{action,id}};await listeners.click({target:{closest(){return button}}});await tick()}};
+}
+let ui=await boot(null,{});
+assert.match(ui.app.innerHTML,/Two people/);
+assert.doesNotMatch(ui.app.innerHTML,/aria-label="Main navigation"/);
+assert.equal(ui.calls.length,0);
+const members=[{id:'a',name:'Alex',role:'A',token:'token-a'},{id:'b',name:'Blair',role:'B',token:'token-b'}];
+ui=await boot({couple_id:'c',members,active:'a'},{'/api/v2/onboarding/status?couple_id=c':{couple_id:'c',completed:false,members:[{...members[0],status:'completed'},{...members[1],status:'in_progress',current_step:3}]},'/api/v2/onboarding/couples/c/members/b':{current_step:3,answers:[{step:3,value:{values:['crowds']},privacy_scope:'PRIVATE'}]}});
+assert.match(ui.app.innerHTML,/Pass the device to Blair/);
+assert.doesNotMatch(ui.app.innerHTML,/aria-label="Main navigation"/);
+assert.equal(ui.calls.length,1,'Handoff must fetch status only, never completed partner answers');
+await ui.click('interview','b');
+assert.match(ui.app.innerHTML,/3 of 7/);
+assert.match(ui.app.innerHTML,/BLAIR|Blair/);
+assert.match(ui.app.innerHTML,/value="crowds" checked/);
+assert.equal(ui.calls.at(-1).options.headers['X-Member-Token'],'token-b');
+assert.ok(ui.calls.every(c=>!c.url.includes('/members/a')),'Never retrieve Person A answers while Person B resumes');
+ui=await boot({couple_id:'c',members,active:'b'},{'/api/v2/onboarding/status?couple_id=c':{completed:false,members:[{...members[0],status:'not_started'},{...members[1],status:'not_started'}]}});
+assert.match(ui.app.innerHTML,/Pass the device to Alex/);
+assert.doesNotMatch(ui.app.innerHTML,/crowds/,'Prior private screen must not survive a handoff');
+ui=await boot(null,{'/api/v2/health':{schema_version:1},'/api/v2/integrations':{openai:{enabled:false},developer_mode:false}});
+await ui.click('settings');
+assert.match(ui.app.innerHTML,/Return to onboarding/);
+assert.doesNotMatch(ui.app.innerHTML,/aria-label="Main navigation"/,'Pre-onboarding settings must never mount main navigation');
+const privateIdentity='SECRET PRIVATE IDENTITY';
+ui=await boot({couple_id:'c',members,active:'a'},{'/api/v2/onboarding/status?couple_id=c':{completed:false,members:[{...members[0],status:'in_progress'},{...members[1],status:'not_started'}]},'/api/v2/onboarding/couples/c/members/a':{current_step:2,answers:[{step:1,value:{name:privateIdentity},privacy_scope:'PRIVATE'}]},'/api/v2/onboarding/couples/c/members/a/answers':{current_step:2}});
+await ui.click('interview','a');
+globalThis.HTMLFormElement=class {id='interview';dataset={step:'1'};querySelectorAll(){return[]}};
+const nativeFormData=globalThis.FormData;
+globalThis.FormData=class {get(key){return {name:privateIdentity,pronouns:'',privacy_scope:'PRIVATE'}[key]}};
+await ui.listeners.submit({target:new HTMLFormElement(),preventDefault(){},submitter:{}});
+globalThis.FormData=nativeFormData;
+assert.doesNotMatch(ui.app.innerHTML,new RegExp(privateIdentity),'Private identity answer must not replace public device identity labels');
+assert.match(ui.app.innerHTML,/Alex/);
+console.log('Frontend browserless checks: welcome gate, partial completion gate, private handoff, server resume, active token isolation, old-screen removal, pre-onboarding settings gate, private identity labels PASS');

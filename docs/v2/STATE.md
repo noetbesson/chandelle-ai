@@ -1,29 +1,56 @@
-# V2 build state
+# État courant
 
-STATUS: COMPLETE
+STATUS: STREAM_REORGANIZATION_COMPLETE
 V2_DONE = PASS
+MERGE_DONE = PASS
 LAST_UPDATED: 2026-09-26
 
-## Baseline
-Executed `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider`: 31 passed in 0.50s before changes. Existing V1 tests remain unchanged and pass in the final 104-test suite.
+## Application
 
-## Delivered gates
-0. Baseline, architecture/contract/data/UX docs and independent architecture review.
-1. SQLite scoped memory, consent, provenance, conflict/correction, fusion retrieval, profiles, export/erasure and resumable dual onboarding.
-2. Persistent 40-entry fictional catalog, hard filters, separate person context, fairness, evidence and activity feedback.
-3. Real opt-in OpenAI SDK Responses adapter, Pydantic outputs, ID rejection, safe fallback, local semantics and optional embedding call.
-4. V2 wrapper around E, 1–3 maximum stops, selected-ID enforcement, timeline/travel/cost, keep/replace/status, history/reviews/photos and memory loop.
-5. Persistent proactive feed using same B→C→E pipeline; explainable triggers, dedup/cooldown/actions and provider interfaces.
-6. Authenticated V2 API, error envelopes, durable runs, idempotent interview/review/actions, developer commands and migration/init.
-7. Mobile-first no-build SPA, dual private interviews, Home/Ask/Discover/Memories/History, detail and settings; all product actions call real APIs.
-8. Full regression, isolation, API lifecycle, fake OpenAI, upload security, reopen/migration, frontend/static and no-network checks passed. Final handoff in FINAL_REPORT.md.
+FastAPI + SQLite + SPA native. Lancer `bash scripts/run.sh`, puis ouvrir
+http://127.0.0.1:8000. La V1 reste à `/v1/demo`. Documentation et démarrage :
+[README racine](../../README.md).
 
-## Final evidence
-104 passed in 5.84s using the global network-denial runner. Node syntax/privacy module checks and actual frontend-shaped TestClient flow passed. See TEST_MATRIX.md for all commands, intermediate failures and repairs.
+## Organisation livrée
 
-## Run
-`scripts/run_v2_demo.sh` → http://127.0.0.1:8000/ (alias /app). Original V1 UI /v1/demo. OpenAI disabled by default. Explicit CHANDELLE_DEV=1 reveals developer seed/reset.
+- Métier regroupé dans les huit streams A–H, chacun avec un `service.py` actuel.
+- `B_memory/onboarding.py` pour l’identité et les entretiens ; E conserve
+  `models.py` et `planner.py` comme contrat/moteur commun.
+- Compatibilité V1 explicite dans `legacy.py` ; routes et assertions historiques conservées.
+- Suppression de la couche parallèle `domain` ; `integrations` limité à OpenAI et aux URLs.
+- Conversations et retours d’activité sortis de la logique des routes, vers H et C.
+- Références/examples/rapports regroupés dans `archive/HISTORY.md`. Schéma SQL décrit
+  dans `CONTRACTS.md`. Parcours démo et installation dans le README racine.
+- Frontend : `app.mjs` et `experiences.mjs` ; tests hors des ressources publiques.
+- Périmètre backend/frontend/docs/scripts/mocks : **138 → 87 fichiers**, hors caches.
+  Backend : **87 → 49** ; docs/v2 : **16 → 6**. Les anciens dossiers documentaires
+  d’équipe et contrats JSON shared sont conservés.
 
-## Scope and limitations
-No commits, remotes, pushes, deployments or live API requests. No shared/A/D/F or original night-shift files edited. Pre-existing AGENTS.md/.gitignore changes, README-SETUP.md, night-shift/AGENTS-V1.md and MASTER_PROMPT.txt retained.
-Local device capabilities are not production authentication. Catalog/calendar are mock/internal. Live providers and real-browser visual QA remain future validation; all requested offline flows are verified through tests/TestClient.
+## Vérification de ce tour
+
+`bash scripts/check.sh` → code 0 : **141 tests Python en 10.38s**, deux suites
+JavaScript et parcours API réussis. 138 cas existants conservés ; 3 gardes
+architecturales ajoutées (propriété des streams, direction des dépendances,
+absence de cycle d’import local). Réseau interdit pour la suite Python.
+Détails et commandes intermédiaires dans `TEST_MATRIX.md`.
+
+## Fonctionnalités et limites
+
+Mémoire avec consentement, deux entretiens, 76 exemples de catalogue, imports
+locaux confirmés, disponibilités communes, programmes/avis, proactivité,
+préparation humaine et export ICS. OpenAI configurable et opt-in.
+Aucun fournisseur live appelé ; Gradium/Dust/Pipelex/Jinko non raccordés.
+Catalogue fictif, identité locale, aucune réservation ni paiement effectué.
+Pas de validation visuelle dans un navigateur réel lors de cette réorganisation.
+
+Aucun commit/push/déploiement ; changements antérieurs conservés. La réorganisation
+modifie les imports Python internes, pas les routes produit ni le schéma SQL.
+
+## Dernière simplification : tests et noms
+
+13 fichiers de tests Python regroupés en 8, tous dans `backend/tests/`. Les 100
+fonctions de test et leurs assertions ont été comparées par AST avant/après et
+sont identiques (141 cas avec paramétrisation). Aucun scénario supprimé.
+Code courant sans suffixe de livraison : frontend/app, api/routes.py,
+backend/requirements.txt et scripts/run.sh. Routes et noms SQL versionnés conservés.
+`bash scripts/check.sh` passe après ces changements.

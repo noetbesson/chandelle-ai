@@ -1,9 +1,9 @@
-"""Persistent couple memory for the offline Chandelle backend."""
+"""V1 compatibility exports. Current product code imports .service explicitly."""
 
-from .models import (CoupleProfile, DateHistoryEntry, FeedbackRecord, PersonPreferences,
+from .legacy import (CoupleProfile, DateHistoryEntry, FeedbackRecord, PersonPreferences,
                      PreferenceFact, ProfileUpdate, SelectionRecord)
-from .repository import DEFAULT_DB_PATH, MemoryRepository, SQLiteMemoryRepository
-from .service import MemoryService
+from .legacy import DEFAULT_DB_PATH, MemoryRepository, SQLiteMemoryRepository
+from .legacy import MemoryService
 
 __all__ = ["CoupleProfile", "DateHistoryEntry", "FeedbackRecord", "PersonPreferences",
            "PreferenceFact", "ProfileUpdate", "SelectionRecord", "DEFAULT_DB_PATH",

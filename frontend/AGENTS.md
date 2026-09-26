@@ -1,9 +1,9 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# Frontend Chandelle
 
-# This is NOT the Next.js you know
+L’interface active est une SPA HTML/CSS/JavaScript native dans `app/`, servie
+par FastAPI. Aucun build, framework ou paquet npm n’est nécessaire.
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+- Les fichiers publiés au navigateur restent dans `app/` ; les tests dans `tests/`.
+- Les actions produit appellent les endpoints locaux `/api/v2`.
+- Préserver les consentements, l’isolation des profils et les tests de confidentialité.
+- Vérification complète depuis la racine : `bash scripts/check.sh`.

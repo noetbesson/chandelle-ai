@@ -1,5 +1,5 @@
-"""Offline request and feedback application service."""
+"""V1 compatibility exports. Current product code imports .service explicitly."""
 
-from .service import ConversationService, DateRequest, FeedbackRequest, MockConstraintParser
+from .legacy import ConversationService, DateRequest, FeedbackRequest, MockConstraintParser
 
 __all__ = ["ConversationService", "DateRequest", "FeedbackRequest", "MockConstraintParser"]

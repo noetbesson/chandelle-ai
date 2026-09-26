@@ -1,10 +1,26 @@
-.runtime/
+# Local data and environments
 .runtime/
 .venv/
-__pycache__/
-.pytest_cache/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+
+# Generated files
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+.next/
+coverage/
+*.tsbuildinfo
+*.log
 .DS_Store
-.runtime/uploads/

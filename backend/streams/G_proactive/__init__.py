@@ -1,5 +1,5 @@
-"""Explainable offline opportunity checks."""
+"""V1 compatibility exports. Current product code imports .service explicitly."""
 
-from .service import OpportunityDecision, ProactiveCheck, ProactiveService
+from .legacy import OpportunityDecision, ProactiveCheck, ProactiveService
 
 __all__ = ["OpportunityDecision", "ProactiveCheck", "ProactiveService"]

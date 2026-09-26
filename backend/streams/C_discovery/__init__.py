@@ -1,8 +1,8 @@
-"""Offline activity discovery against a persistent B profile snapshot."""
+"""V1 compatibility exports. Current product code imports .service explicitly."""
 
-from .models import ActivityListing, DiscoveryConstraints
-from .repository import ActivityRepository, LocalActivityRepository
-from .service import DiscoveryService
+from .legacy import ActivityListing, DiscoveryConstraints
+from .legacy import ActivityRepository, LocalActivityRepository
+from .legacy import DiscoveryService
 
 __all__ = ["ActivityListing", "DiscoveryConstraints", "ActivityRepository",
            "LocalActivityRepository", "DiscoveryService"]

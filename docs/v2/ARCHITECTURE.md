@@ -1,16 +1,121 @@
-# Architecture
+# Architecture et responsabilités
 
-FastAPI V1 preserved; V2 router composes local identity/onboarding, B scoped memory, C persistent catalog, verified E planner through explicit domain adapter, G feed, H conversation ingestion, and optional OpenAI adapter.
+## Règle de lecture
 
-SQLite Database owns migrations and short-lived connections with foreign keys, busy timeout and WAL. All V2 tables prefixed v2_. B owns memory repository/service but uses root-provided Database. C owns catalog repository/service using same Database. Root domain service maps consent-filtered B planning context to E models. E remains deterministic, enforcing budget/time/travel and preserving kept activities. V2 adds unique plan IDs, status, reviews, uploads, evidence and durable traces around E.
+**`api` expose, `streams` décident, `integrations` adaptent, `db` persiste.**
+Il n’y a plus de dossier `domain` parallèle aux streams. Chaque stream possède
+un `service.py` actuel ; `legacy.py` signifie exclusivement compatibilité V1.
 
-Privacy boundary: API authenticates X-Member-Token and resolves member/couple server-side. B retrieval accepts viewer_id and denies other-person facts; planning_context is an internal service method returning only consent-allowed structured facts. Public couple summary contains SHARED facts plus safe numeric/category aggregates, never raw private/recommendation free text. Events/provenance exports are owner-only.
+L’organisation est MECE pour l’attribution des responsabilités : chaque capacité
+a un propriétaire. Les streams collaborent ; ils ne sont pas indépendants et ne
+constituent pas huit microservices. Aucun découpage supplémentaire en couches
+models/repository/service n’est imposé à chaque stream.
 
-Frontend: standalone local HTML/CSS/modules. Server persists onboarding answers/current step and gates planning/main API until both complete. Explicit developer seed/reset is gated by CHANDELLE_DEV=1. Upload bytes stored in ignored .runtime/uploads, metadata SQL, authenticated serving, safe content types.
+## Carte A–H
 
-## Delivered composition
-`backend/api/app.py` retains V1 composition and mounts `install_v2`. V2 instances live under app.state.v2, allowing in-process isolated tests with temporary SQL files. Default V1 and V2 databases are separate. Tests may intentionally share a file; prefixed V2 tables preserve legacy couple_profiles. Managed SQL connections close after commit/rollback.
+| Stream | Propriétaire de | Entrée → sortie | Hors de sa responsabilité |
+| --- | --- | --- | --- |
+| A calendrier | Disponibilités, intersection, fuseau Paris, créneau de démo | Plages individuelles → plages communes | Goûts, choix des activités, réservation |
+| B mémoire | Faits, consentements, provenance, recherche, profils, identité/entretiens | Faits autorisés → contexte filtré | Recherche de lieux et composition |
+| C découverte | Catalogue, contraintes fortes, classement, favoris/aversions d’activité | Contexte B + créneau A → candidats scorés | Programmation finale et collecte de fichiers |
+| D connecteurs | Analyse des exports, normalisation, déduplication, confirmation d’inspirations | Fichiers/textes → faits B avec provenance | Stockage mémoire indépendant ou téléchargement implicite |
+| E orchestration | Assemblage B/C/A, faisabilité, programmes persistants, remplacement, statut, avis associés au programme | Candidats → DatePlan validé | Réservation et lecture du texte utilisateur stocké par H |
+| F réservation | Préparation humaine et export ICS du programme accepté | DatePlan → actions/ICS | Paiement, confirmation chez un fournisseur, recherche d’activités |
+| G proactivité | Opportunités, suggestions persistantes, temporisation et actions | Signaux autorisés → appel E et suggestion | Deuxième moteur de composition |
+| H conversation | Compréhension locale, vocabulaire, conversation et extraction injectée | Texte → contraintes ou faits vers B | Propriété des profils et génération des itinéraires |
 
-`domain/onboarding.py` owns identity/interview state. `domain/planning.py` maps B planning_context through C CatalogService into E generate/replace, assigns UUIDs, persists plans, exposes only public fields and learns from owner-scoped reviews. G SuggestionService invokes this same query method. H's verified mock calendar function remains the common-slot source; V2 conversation endpoint uses scoped extraction and durable conversations/messages. Provider protocols remain interfaces only.
+B expose les types de consentement. `B_memory/onboarding.py` gère identité et
+entretiens ; `B_memory/service.py` reste le point d’entrée mémoire.
+E expose les types `TimeWindow`, `CandidateActivity`, `DatePlan` dans `models.py` ;
+les autres streams utilisent ce contrat existant. Ce sont des dépendances de
+types, pas des appels au moteur E.
 
-V2 root URL is /, alias /app, resources /v2-static. Original V1 UI moved to /v1/demo without altering original asset files or API routes. Frontend is deliberately independent of the uninstalled Next starter.
+## Dépendances d’exécution
+
+```mermaid
+flowchart TD
+    UI["frontend/app"] --> API["api/app.py + api/routes.py"]
+    API --> H["H — comprendre"]
+    API --> D["D — importer"]
+    API --> B["B — mémoire et profils"]
+    API --> E["E — composer et gérer le programme"]
+    API --> G["G — proposer"]
+    API --> F["F — préparer la sortie"]
+    API --> A["A — disponibilités"]
+    D --> H
+    D --> B
+    H --> B
+    G --> E
+    E --> A
+    E --> C["C — trouver/classer"]
+    C --> B
+    E --> B
+    F --> A
+```
+
+Les services accèdent à `backend/db` pour leurs tables et à `integrations` lorsque
+nécessaire. OpenAI reçoit un schéma validé et utilise le vocabulaire H comme repli ;
+le service de conversation H reçoit son adaptateur par injection. La validation
+d’URL est dans `integrations/urls.py`, partagée par D et F.
+
+Aucun stream n’importe `backend/api`. Le stockage n’importe ni stream ni API.
+Les tests d’architecture vérifient ces règles et l’absence de cycle d’import Python
+local. Ils protègent le graphe, pas une promesse de séparation parfaite de chaque
+ligne de code.
+
+## Frontière HTTP et fonctionnalités transverses
+
+`api/app.py` compose le serveur et les routes historiques ; `api/routes.py` assemble
+les services et expose les routes actuelles. L’API résout le membre/couple,
+contrôle l’accès, valide les payloads et transforme les erreurs.
+Elle coordonne aussi les opérations transverses d’effacement personnel, les
+uploads privés et les commandes de démonstration. Ces opérations restent
+explicites dans ce fichier : pas de dossiers supplémentaires sans besoin actuel.
+
+Les décisions métier d’import, calendrier, découverte, composition, conversation
+et réservation appartiennent aux streams. En particulier, les retours sur une
+activité sont implémentés par C ; les avis sur un programme sont attachés à son
+cycle de vie E, puis alimentent B. Il n’existe qu’une source de vérité mémoire.
+
+## Compatibilité V1
+
+Le planificateur E (`planner.py` et `models.py`) est partagé et conserve ses
+algorithmes. Les petits modèles/dépôts/services B et C historiques sont réunis
+dans leur `legacy.py`, avec leurs symboles et tests conservés. H et G gardent leur
+service historique sous le même nom explicite. Le pipeline V1 appartient à
+`E_orchestrator/legacy.py` ; son ancienne API autonome est dans
+`api/legacy_orchestrator.py`. Les exports V1 des packages B/C/G/H sont conservés.
+
+Les endpoints `/v1`, `/v1/demo`, `/static`, `/api/v2`, `/`, `/app`, `/v2-static`
+restent identiques. Les chemins Python internes ont changé : aucun shim vide ou
+alias dynamique ne masque l’emplacement réel du métier. Les imports internes et
+ceux des tests ont été mis à jour ; les assertions de régression sont conservées.
+
+## Fichiers à conserver et fichiers consolidés
+
+- Conserver les tests : ils spécifient confidentialité, budget, faisabilité et compatibilité.
+- Conserver `db/database.py` : schéma unique et migrations rétrocompatibles.
+- Conserver les fixtures réellement lues : `mocks/E`, `mocks/peer` et le catalogue V1 de C.
+- Les anciens exemples input/output, READMEs de streams, rapports et consignes de
+  construction sont réunis dans `archive/HISTORY.md`, avec leurs chemins d’origine.
+- Les interfaces de fournisseurs sans appelant ont été retirées ; l’adaptateur
+  OpenAI réellement utilisé reste dans `integrations/openai.py`.
+- Les tests frontend vivent dans `frontend/tests` ; `experiences.mjs` contient les
+  parcours inspirations/disponibilités/comparaison/export, auparavant nommés merge.
+
+L’organisation des fichiers ne change ni le schéma SQL ni les consentements.
+Vérification complète : `bash scripts/check.sh`.
+
+## Tests et noms de version
+
+Tous les tests Python sont dans `backend/tests/`, en huit fichiers par responsabilité :
+API, parcours, mémoire, découverte, orchestration, OpenAI, compatibilité V1 et
+architecture. Aucun test ne reste au milieu des services applicatifs. Les tests
+similaires en apparence couvrent des couches différentes (métier, HTTP, persistance) ;
+leurs assertions ne sont pas supprimées pour réduire artificiellement le nombre de fichiers.
+
+Les noms de livraison disparaissent des fichiers actuels : `frontend/app/`,
+`api/routes.py`, `requirements.txt`, `scripts/run.sh`, `init_demo.py`,
+`reset_demo.sh`, `test_offline.py`. Les identifiants `/api/v2`, `/v2-static`,
+les tables SQL `v2_*` et le répertoire de mémoire de construction `docs/v2`
+sont conservés : ce sont des contrats/historiques, pas des copies du produit.

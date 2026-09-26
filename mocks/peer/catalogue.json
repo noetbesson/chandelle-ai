@@ -1,0 +1,392 @@
+[
+  [
+    "Maison Yuzu",
+    "restaurant",
+    28,
+    75,
+    [
+      "japonais",
+      "calme"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "Comptoir Kumo",
+    "restaurant",
+    24,
+    75,
+    [
+      "japonais",
+      "nouveaute"
+    ],
+    "République"
+  ],
+  [
+    "Table Nori",
+    "restaurant",
+    34,
+    75,
+    [
+      "japonais",
+      "vegetarien"
+    ],
+    "Marais"
+  ],
+  [
+    "Les Petites Assiettes",
+    "restaurant",
+    26,
+    75,
+    [
+      "francais",
+      "calme"
+    ],
+    "Marais"
+  ],
+  [
+    "Pasta du Passage",
+    "restaurant",
+    22,
+    75,
+    [
+      "italien"
+    ],
+    "République"
+  ],
+  [
+    "Jardin des Saveurs",
+    "restaurant",
+    25,
+    75,
+    [
+      "vegetarien",
+      "calme"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "Le Grand Service",
+    "restaurant",
+    70,
+    90,
+    [
+      "formel"
+    ],
+    "Marais"
+  ],
+  [
+    "Table Mystère",
+    "restaurant",
+    null,
+    75,
+    [
+      "japonais"
+    ],
+    "Marais"
+  ],
+  [
+    "Jazz sous les étoiles",
+    "concert",
+    16,
+    75,
+    [
+      "jazz",
+      "musique"
+    ],
+    "République"
+  ],
+  [
+    "Le Petit Quartet",
+    "concert",
+    20,
+    75,
+    [
+      "jazz",
+      "calme"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "Cordes du soir",
+    "concert",
+    18,
+    70,
+    [
+      "classique",
+      "musique"
+    ],
+    "Marais"
+  ],
+  [
+    "Scène électrique",
+    "concert",
+    23,
+    75,
+    [
+      "rock",
+      "bruyant"
+    ],
+    "République"
+  ],
+  [
+    "Les couleurs de la nuit",
+    "culture",
+    12,
+    60,
+    [
+      "exposition",
+      "art"
+    ],
+    "Marais"
+  ],
+  [
+    "Cinéma des curieux",
+    "culture",
+    13,
+    105,
+    [
+      "cinema",
+      "nouveaute"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "Une heure pour rire",
+    "culture",
+    19,
+    60,
+    [
+      "standup"
+    ],
+    "République"
+  ],
+  [
+    "Histoires du Paris secret",
+    "culture",
+    10,
+    60,
+    [
+      "histoire",
+      "musee"
+    ],
+    "Marais"
+  ],
+  [
+    "Les mots de demain",
+    "culture",
+    8,
+    60,
+    [
+      "conference",
+      "culture"
+    ],
+    "République"
+  ],
+  [
+    "Galerie ouverte",
+    "culture",
+    0,
+    50,
+    [
+      "exposition",
+      "art"
+    ],
+    "Marais"
+  ],
+  [
+    "La terre à deux",
+    "atelier",
+    30,
+    90,
+    [
+      "ceramique",
+      "creatif"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "Couleurs complices",
+    "atelier",
+    25,
+    90,
+    [
+      "peinture",
+      "creatif"
+    ],
+    "République"
+  ],
+  [
+    "L’atelier des parfums",
+    "atelier",
+    38,
+    90,
+    [
+      "parfum",
+      "creatif"
+    ],
+    "Marais"
+  ],
+  [
+    "Cuisine à quatre mains",
+    "atelier",
+    42,
+    90,
+    [
+      "japonais",
+      "cuisine"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "Le canal à petits pas",
+    "balade",
+    0,
+    45,
+    [
+      "balade",
+      "calme"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "Le Marais au crépuscule",
+    "balade",
+    0,
+    45,
+    [
+      "balade",
+      "architecture"
+    ],
+    "Marais"
+  ],
+  [
+    "Les jardins du soir",
+    "balade",
+    0,
+    45,
+    [
+      "nature",
+      "balade"
+    ],
+    "République"
+  ],
+  [
+    "Escalade en duo",
+    "sport",
+    18,
+    60,
+    [
+      "escalade",
+      "sport"
+    ],
+    "République"
+  ],
+  [
+    "Yoga côte à côte",
+    "sport",
+    15,
+    60,
+    [
+      "yoga",
+      "calme"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "La danse des débutants",
+    "sport",
+    20,
+    60,
+    [
+      "danse",
+      "nouveaute"
+    ],
+    "Marais"
+  ],
+  [
+    "Le Verre Ambré",
+    "bar",
+    12,
+    45,
+    [
+      "cocktail",
+      "calme"
+    ],
+    "Marais"
+  ],
+  [
+    "Le Comptoir des bulles",
+    "bar",
+    14,
+    45,
+    [
+      "vin"
+    ],
+    "République"
+  ],
+  [
+    "Jusqu’à la lune",
+    "bar",
+    11,
+    45,
+    [
+      "sans_alcool",
+      "calme"
+    ],
+    "Canal Saint-Martin"
+  ],
+  [
+    "Un film, une couverture",
+    "domicile",
+    4,
+    110,
+    [
+      "cinema",
+      "calme"
+    ],
+    "À la maison"
+  ],
+  [
+    "Ramen maison",
+    "domicile",
+    10,
+    75,
+    [
+      "japonais",
+      "cuisine"
+    ],
+    "À la maison"
+  ],
+  [
+    "Soirée jeux complices",
+    "domicile",
+    0,
+    60,
+    [
+      "jeux",
+      "calme"
+    ],
+    "À la maison"
+  ],
+  [
+    "Concert complet",
+    "concert",
+    12,
+    75,
+    [
+      "jazz"
+    ],
+    "Marais"
+  ],
+  [
+    "Parenthèse à Fontainebleau",
+    "escapade",
+    85,
+    720,
+    [
+      "nature",
+      "escapade"
+    ],
+    "Fontainebleau"
+  ]
+]
