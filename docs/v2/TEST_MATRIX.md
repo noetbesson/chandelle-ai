@@ -108,3 +108,10 @@ courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépenda
 
 - `PYTHONDONTWRITEBYTECODE=1 /private/tmp/chandelle-ai-inspect/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests backend/streams/C_discovery/tests` : **149 passed, 5 subtests passed**, code 0 ; tests hors ligne, aucun appel OpenAI. Exécution dans le dépôt local après fusion des branches.
 - Vérification locale du contrat Activity, des quatre fiches (`match_score` et `why` à null), de `.env.example`, et absence de `.env` ou `backend/api` dans le diff préparé : PASS.
+
+
+## Cache Discovery affiché — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 /private/tmp/chandelle-ai-inspect/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests backend/streams/C_discovery/tests` : **150 passed, 5 subtests passed**, code 0, exécution hors ligne dans la copie de travail.
+- Le test API ajouté vérifie quatre Activity réelles, leurs liens sources, leurs champs `match_score`/`why` nuls et leur absence des programmes calculés.
+- Vérification JavaScript par Node indisponible dans cet environnement (`node: command not found`) ; syntaxe/frontend à valider ultérieurement sur une machine avec Node.

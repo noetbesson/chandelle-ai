@@ -18,7 +18,7 @@ from backend.streams.D_connectors.service import InspirationService, SignalImpor
 from backend.streams.C_discovery.service import seed_peer_catalog
 from backend.integrations.openai import OpenAIAdapter
 from backend.streams.B_memory.service import MemoryServiceV2
-from backend.streams.C_discovery.service import CatalogService
+from backend.streams.C_discovery.service import CatalogService, cached_real_activities
 from backend.streams.G_proactive.service import SuggestionService
 from backend.streams.H_conversation.service import Conversation, ConversationService
 
@@ -176,6 +176,11 @@ def install_routes(app,db_path):
             if score:item.update({k:score[k] for k in ('person_a_score','person_b_score','couple_score','evidence','components')})
             item['state']=states.get(item['id'],'neutral');item['eligible']=score is not None
         return result
+
+    @router.get('/activities/real')
+    def real_activities(member=Depends(ready)):
+        items = cached_real_activities()
+        return {'items': items, 'total': len(items)}
 
     @router.get('/activities/{aid}')
     def activity(aid:str,member=Depends(ready)):return catalog.get(aid)

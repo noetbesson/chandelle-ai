@@ -84,3 +84,8 @@ For full personal-data erasure rather than memory-scope erasure, `/users/me/data
 ## Réorganisation par stream
 
 Routes, payloads et schéma SQL inchangés. Les imports Python suivent désormais `backend.streams.<lettre>_<nom>.service`. La carte complète et les responsabilités transverses sont dans ARCHITECTURE.md. Les types E restent dans E_orchestrator/models.py.
+
+
+## Cache Discovery consultable
+
+`GET /api/v2/activities/real` requiert les deux entretiens terminés et retourne `{items:[Activity...],total}` depuis `backend/streams/C_discovery/data/activities.json`. Les Activity sont revalidées, sans appel réseau, et ne sont pas ajoutées à `v2_activities` ni aux candidats de planification. Le frontend les montre dans une section distincte avec lien vers `website`. Prix, horaires, coordonnées et score inconnus restent `null`. Un cache absent donne une liste vide.
