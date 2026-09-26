@@ -38,3 +38,17 @@ assert.equal(calls.length,before,'A file read for A must never be submitted as B
 assert.equal(await clickExperience(button('','unrelated')),false);
 assert.equal(await submitExperience({id:'unrelated'}),false);
 console.log('Merged UI PASS: imports/escaping, consent, availability, comparison limit, unknown prices, booking/export actions, identity change during file read.');
+
+responses['/reels/upload?wait=true']={source:'reel'};
+identity='a';
+const video={name:'video.mp4',size:100,type:'video/mp4'};
+await submitExperience({id:'reel-import',values:{video,consent:'true',caption:'Jazz'}});
+assert.equal(calls.at(-1).path,'/reels/upload?wait=true');
+assert.equal(calls.at(-1).options.raw.get('video'),video);
+assert.equal(calls.at(-1).options.body,undefined);
+assert.match(html,/reel-import/);assert.match(html,/cloud_consent/);
+const previousCount=calls.length;
+await assert.rejects(()=>submitExperience({id:'reel-import',values:{video,consent:'false'}}),/autorisation/);
+await assert.rejects(()=>submitExperience({id:'reel-import',values:{video:{...video,size:34*1024*1024},consent:'true'}}),/32 Mio/);
+assert.equal(calls.length,previousCount);
+console.log('Reel UI PASS: authenticated multipart submission, consent, size and visible upload form.');

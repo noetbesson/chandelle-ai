@@ -4,3 +4,5 @@
 .experience-shortcuts{margin-bottom:1.6rem}.experience-shortcuts button{border-radius:999px;background:#f4e5d8;color:var(--wine)}
 .selection-bar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.7rem;background:#fffaf3f5;border:1px solid var(--line);border-radius:14px;padding:.8rem;margin-top:1rem;backdrop-filter:blur(12px)}
 .selection-bar span{font-size:.82rem;color:var(--muted)}.signal-text{white-space:pre-wrap;overflow-wrap:anywhere}.comparison-table{overflow-x:auto}table{border-collapse:collapse;width:100%;text-align:left}th,td{padding:.8rem .5rem;border-bottom:1px solid var(--line)}caption{text-align:left;color:var(--muted);font-size:.85rem;margin-bottom:.8rem}button[aria-pressed=true]{background:var(--wine);color:white}.card>button+button{margin:.4rem 0 .4rem .4rem}
+
+#share-error:empty{display:none}

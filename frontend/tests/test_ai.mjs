@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {renderWebResult,aiDiscoverForm,aiMemoryForm} from '../app/ai.mjs';
+const html=renderWebResult({status:'completed',answer:'<script>evil()</script>',sources:[{url:'https://www.paris.fr/example',title:'<img src=x onerror=evil()>'}],searched_at:'2026-09-26',verification:'À vérifier'});
+assert.ok(!html.includes('<script>'));
+assert.ok(!html.includes('<img'));
+assert.ok(html.includes('rel="noopener noreferrer"'));
+assert.ok(html.includes('https://www.paris.fr/example'));
+const inline=renderWebResult({status:'completed',segments:[{text:'Lire '},{text:'la source',url:'https://www.paris.fr/example'}],sources:[]});
+assert.ok(inline.includes('>la source</a>'));
+assert.match(renderWebResult({status:'unavailable',reason:'budget_limit_reached'}),/quota local/);
+assert.match(aiDiscoverForm(),/name="cloud_consent" required/);
+assert.match(aiMemoryForm(),/value="PRIVATE"/);
+console.log('AI UI: escaped content, source links, budget state and consent forms PASS');
