@@ -82,3 +82,28 @@ For full personal-data erasure rather than memory-scope erasure, `/users/me/data
 ## Réorganisation par stream
 
 Routes, payloads et schéma SQL inchangés. Les imports Python suivent désormais `backend.streams.<lettre>_<nom>.service`. La carte complète et les responsabilités transverses sont dans ARCHITECTURE.md. Les types E restent dans E_orchestrator/models.py.
+
+## Entrée vidéo mémoire
+
+`backend/api/reels.py` est installé par `install_routes`, sans nouveau serveur.
+Routes `/api/v2/reels/upload` (POST multipart, option `wait=true`) et
+`/api/v2/reels/jobs/{job_id}` (GET propriétaire). Identité uniquement par le jeton
+existant ; les champs `couple_id`/`user_id` envoyés dans le formulaire sont refusés.
+
+Le modèle `backend/integrations/reels/models.py:TasteSignal` valide strictement
+signal_id, category, tags, mood, budget_hint, source='reel', source_url, confidence,
+extracted_at et raw_transcript. Budget/ambiance restent nuls si inconnus. L'URL est
+une métadonnée, jamais une adresse de téléchargement.
+
+`backend/streams/B_memory/reels.py` orchestre extraction, transcription,
+normalisation et `MemoryServiceV2.ingest`. Un fait PERSON, source inspiration_import,
+clé reel:<empreinte>, contient le signal et les propositions avec confirmed=false.
+Le parcours D de confirmation reste identique : supersession vers interests,
+consentement et horizon. Aucune écriture dans un hypothétique second COUPLE PROFILE.
+
+`v2_reel_jobs` : propriétaire, couple, empreinte, état/phase/backend, code d'erreur,
+dates. Aucun audio ni texte brut. Extension `reels_memory=1`, version V2 inchangée.
+Déduplication par propriétaire et URL canonique ou hash du fichier. Une URL désigne
+le même import même si la légende change : corriger ensuite la mémoire existante.
+Un job ne peut pas être consulté par l'autre membre ; l'effacement du profil annule
+ses jobs avant qu'ils puissent réécrire des faits. Les vidéos restent temporaires.

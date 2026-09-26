@@ -93,3 +93,54 @@ OpenAI est opt-in : `OPENAI_ENABLED`, `OPENAI_API_KEY`, `OPENAI_MODEL`,
 Le smoke live requiert `RUN_LIVE_OPENAI_SMOKE=1` et n’entre jamais dans les tests
 par défaut. Gradium, Dust, Pipelex, Jinko et les sources publiques live ne sont pas
 raccordés à cette version.
+
+## Import vidéo dans la mémoire
+
+Dans l'application, terminer les deux entretiens, choisir son profil, puis ouvrir
+**Inspirations > Importer une vidéo Instagram ou TikTok**. Ajouter un MP4/MOV
+obtenu avec autorisation (32 Mio, 3 minutes maximum), sa légende et éventuellement
+son lien/date d'origine. Le lien ne déclenche aucun téléchargement.
+Après traitement, corriger les goûts proposés et choisir leur utilisation avant
+confirmation. Un import privé ne change pas les recommandations du couple.
+
+Le code utilisé est `backend/streams/B_memory/reels.py`, raccordé à
+`backend/api/reels.py` et aux adaptateurs `backend/integrations/reels/`.
+Les faits rejoignent `v2_facts` dans la même base ; `v2_reel_jobs` contient seulement
+l'état des traitements. Le dossier TypeScript `B_memory/video-memory` qui avait
+été copié reste intact, mais le serveur Python ne l'exécute pas.
+
+Sous Windows, depuis la racine du projet :
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+$env:PYTHONUTF8='1'
+.\.venv\Scripts\python.exe -m uvicorn backend.api.app:app --host 127.0.0.1 --port 8000 --workers 1
+```
+
+Installer FFmpeg et FFprobe localement, ou renseigner leurs chemins absolus via
+`REELS_FFMPEG_PATH` et `REELS_FFPROBE_PATH`. Sur cette machine, les deux exécutables
+sont déjà dans `.runtime/tools/`, dossier ignoré par Git.
+Le modèle de configuration sans secret est
+`backend/integrations/reels/.env.example`. Il n'est pas chargé automatiquement :
+les variables doivent être définies dans l'environnement du serveur.
+
+Par défaut, `REELS_NORMALIZATION_BACKEND=local` et `REELS_LIVE_ENABLED=0` :
+extraction audio locale, aucune transcription distante, propositions limitées aux
+mots de la légende. Pour Gradium et la normalisation OpenAI/Pipelex, configurer les
+clés côté serveur, activer explicitement `REELS_LIVE_ENABLED=1`, sélectionner
+`openai` ou `pipelex`, puis obtenir le consentement cloud dans le formulaire.
+Aucune clé ne doit être placée dans le navigateur ou copiée dans le chat.
+
+L'API authentifiée est `POST /api/v2/reels/upload` avec `X-Member-Token`, fichier
+multipart `video`, `consent=true`, champs facultatifs `caption`, `source_url`,
+`signal_at` et `cloud_consent=true`. Sans `wait`, elle retourne un job (202),
+consultable par son propriétaire via `GET /api/v2/reels/jobs/{job_id}`.
+Avec `?wait=true`, elle retourne directement le TasteSignal validé. Un doublon
+réutilise le signal existant. Les fichiers temporaires sont supprimés en fin de
+traitement ; après redémarrage, les travaux interrompus sont signalés en échec et
+leurs fichiers supprimés. L'utilisateur peut renvoyer le fichier.
+
+Cette application reste une démonstration locale avec identité par jeton de membre.
+Un seul processus serveur est prévu. Il n'y a ni connexion Instagram/TikTok, ni
+scraping, ni nouvelle installation PWA dans cette intégration.

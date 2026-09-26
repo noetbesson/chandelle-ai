@@ -94,3 +94,49 @@ courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépenda
 - Comparaison AST des fonctions `test_*` avant/après regroupement : **100 fonctions strictement identiques**, signatures et assertions comprises ; 13 fichiers deviennent 8. Les imports nécessaires sont adaptés hors des fonctions.
 - `bash scripts/check.sh` → code 0 : **141 passed in 10.38s**, deux suites Node et parcours API TestClient PASS ; syntaxe JS/shell et `git diff --check` réussis.
 - Commandes courantes : `bash scripts/run.sh` pour lancer, `bash scripts/check.sh` pour vérifier. Les anciens chemins run_v2_demo/test_v2_offline dans les preuves précédentes décrivent les commandes exécutées à ces dates.
+
+## Audit de raccordement de la mémoire vidéo (26 septembre 2026)
+
+| Vérification | Résultat observé | Code concerné |
+| --- | --- | --- |
+| Le code importé est-il réellement appelé ? | Oui : route enregistrée dans le FastAPI existant, formulaire Inspirations raccordé. Le dossier TypeScript préexistant est conservé mais inactif. | api/routes.py, api/reels.py, frontend/app/experiences.mjs |
+| Le signal rejoint-il B ? | Oui : TasteSignal dans une inspiration PERSON de v2_facts, même base et même service. | streams/B_memory/reels.py, service.py |
+| Attribution et confidentialité | Propriétaire issu du jeton serveur, paramètres d'identité refusés, inspiration privée, job inaccessible au partenaire. | api/reel_receive.py, api/reels.py |
+| Influence réelle sur le classement | Classement inchangé avant confirmation, différent après consentement COUPLE_RECOMMENDATION. | tests/test_reels.py, parcours B/D/C existant |
+| Ancienneté | Signal de 2020 conservé comme tel ; une confirmation temporaire ne le rend pas récent. | tests/test_reels.py |
+| Doublons | Même signal_id, un seul fait actif, aucun renforcement à la relance ; même comportement en mode asynchrone. | streams/B_memory/reels.py |
+| Effacement | Suppression des jobs du profil ; job annulé incapable de réécrire la mémoire ; fichiers temporaires nettoyés. | api/routes.py, tests/test_reels.py |
+| Redémarrage | Job interrompu marqué failed/INTERRUPTED et fichiers nettoyés. Pas de reprise automatique annoncée. | api/reels.py |
+| Formats et erreurs | MP4/MOV bornés en taille/durée, contrôle signature et FFprobe, autorisation requise, URL locale refusée. | api/reel_receive.py, integrations/reels/extract_audio.py |
+| Gradium / OpenAI / Pipelex | Contrats et erreurs testés avec transports simulés ; aucun appel fournisseur réel. | tests/test_reel_media.py, test_reel_normalize.py |
+
+Les MP4 utilisés pour la preuve sont générés localement par le vrai FFmpeg. Les
+extractions audio avec et sans piste sont exécutées réellement. Les recommandations
+utilisent le catalogue fictif existant. Le mode local analyse les mots de la
+légende ; il ne transcrit pas l'audio sans fournisseur configuré.
+
+Vérifications UI : `node --check` sur app.mjs/experiences.mjs, deux suites Node et
+`scripts/verify_frontend_api.py` réussis. Test du formulaire multipart, consentement,
+taille et échappement ; parcours existants d'entretien, choix d'activité,
+acceptation, feedback et édition mémoire préservés. Vérifications sans navigateur
+visuel ; aucun test de partage natif Android/iOS effectué dans ce dépôt.
+
+Adaptations de test : tzdata pour ZoneInfo sous Windows ; six identifiants courts
+pour les tests d'upload existants, car le nom automatique de l'échantillon de 5 Mio
+dépassait la limite Windows des variables d'environnement. Aucune assertion retirée.
+La paire de sockets interne d'asyncio est autorisée dans le lanceur Windows ; les
+connexions réseau des fournisseurs restent bloquées.
+
+Limites : identité locale par jeton, base SQLite non chiffrée, un seul processus
+serveur et tâches en mémoire, pas de publication autorisée. Cet audit confirme le
+raccordement fonctionnel local et les contrôles testés, pas une homologation de
+sécurité pour un service public.
+
+Résultats exécutés : suite complète `scripts/test_offline.py --tb=short
+--junitxml=.runtime/memory-tests.xml` : **195 passed en 119,97 s**. Après ajout du
+contrôle protégeant une inspiration corrigée manuellement contre un réimport,
+les **10 tests d'intégration vidéo ont été rejoués et passent en 11,07 s**
+(`.runtime/reel-final-tests.xml`). Les deux suites Node, la syntaxe JS et le parcours
+API des écrans passent également. `git diff --check` ne signale aucune erreur.
+Les rapports bruts restent dans `.runtime/`, ignoré par Git. Aucun test fournisseur
+live, commit, push ou déploiement.

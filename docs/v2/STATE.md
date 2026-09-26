@@ -54,3 +54,24 @@ sont identiques (141 cas avec paramétrisation). Aucun scénario supprimé.
 Code courant sans suffixe de livraison : frontend/app, api/routes.py,
 backend/requirements.txt et scripts/run.sh. Routes et noms SQL versionnés conservés.
 `bash scripts/check.sh` passe après ces changements.
+
+## Intégration mémoire vidéo, 26 septembre 2026
+
+L'autorisation utilisateur vise explicitement ce dépôt. Les fichiers TypeScript
+copiés dans `B_memory/video-memory/` ne correspondent pas à la stack Python ; ils
+ont été conservés sans modification. Le pipeline Python est raccordé au FastAPI
+existant, à son authentification et à la mémoire B. Aucun deuxième backend ni
+stockage de préférences supplémentaire.
+
+Entrée visible : écran Inspirations, formulaire vidéo. Sortie : inspiration privée
+à confirmer dans le parcours D existant. Correction, consentement, ancienneté,
+classement et effacement réutilisent B/C. Le flux local fonctionne avec une légende
+et FFmpeg ; l'audio silencieux ou sans transcription n'est pas inventé.
+Gradium, Pipelex et OpenAI disposent d'adaptateurs et de tests de réponses simulées.
+Aucun appel réel de ces fournisseurs n'a été effectué lors de cette intégration.
+
+Reprise : suivre le README, configurer des clés uniquement côté serveur si un test
+externe est souhaité, recueillir le consentement cloud, puis vérifier une vraie
+transcription. La planification de jobs distribués et l'authentification publique
+restent hors du périmètre de cette application locale. Aucun commit, push ou
+publication effectué.

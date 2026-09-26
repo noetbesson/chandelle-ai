@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
+from backend.api.reels import install_reel_routes
 from backend.db import Database
 from backend.streams.B_memory.onboarding import OnboardingService, CoupleCreate, Answer
 from backend.streams.B_memory.service import Privacy
@@ -69,6 +70,8 @@ def install_routes(app,db_path):
     def ready(member=Depends(auth)):
         if not onboarding.status(member['couple_id'])['completed']:raise HTTPException(409,'Complete both interviews first')
         return member
+
+    reels=install_reel_routes(app,db,memory,ready)
 
     def own_couple(cid,member):
         if cid!=member['couple_id']:raise PermissionError('Different couple')
@@ -162,6 +165,7 @@ def install_routes(app,db_path):
     @router.delete('/memories/entity/{scope}/{eid}')
     def erase_entity(scope:str,eid:str,member=Depends(ready)):
         entity(scope,eid,member)
+        if scope=='PERSON' and eid==member['id']:reels.cancel(member)
         return memory.delete_entity(member['couple_id'],scope,eid,member['id'])
 
     @router.get('/activities')
@@ -308,6 +312,7 @@ def install_routes(app,db_path):
     @router.delete('/users/me/data')
     def erase_person(body:Reset,member=Depends(auth)):
         if body.confirmation!='DELETE MY DATA':raise ValueError('Explicit personal erasure confirmation required')
+        reels.cancel(member)
         uid,cid=member['id'],member['couple_id']
         with db.connect() as c:
             scopes=[tuple(r) for r in c.execute('SELECT DISTINCT scope,entity_id FROM v2_facts WHERE couple_id=? AND owner_id=?',(cid,uid))]

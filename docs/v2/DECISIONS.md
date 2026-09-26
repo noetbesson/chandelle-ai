@@ -40,3 +40,8 @@
 
 29. Suite à la demande de retirer les fichiers superflus : regrouper les 13 fichiers de tests Python en 8 fichiers par responsabilité dans backend/tests, sans suppression de fonction ni d’assertion. Les doublons visuels de fichiers V1/V2 ne sont pas assimilés à une couverture fonctionnelle redondante.
 30. Retirer les versions des noms de fichiers applicatifs : frontend/app, api/routes.py, requirements.txt, scripts/run.sh/init_demo.py/reset_demo.sh/test_offline.py. Maintenir les chemins HTTP, identifiants SQL, confirmation de reset et mémoire documentaire docs/v2 pour éviter une migration inutile. Les commandes historiques consignées précédemment restent inchangées.
+
+31. Raccorder l'import vidéo Python à l'API V2 et aux faits B existants. Les fichiers TypeScript déposés manuellement restent intacts et inactifs. Aucune base parallèle ni changement de D_connectors.
+32. Une vidéo produit un signal proposé, privé. Seule la confirmation existante autorise son utilisation. Conserver la date du signal séparément de la date d'analyse ; absence de date signifie inconnue. Les refus repérés dans le texte retirent les propositions correspondantes.
+33. Utiliser un registre de jobs opérationnel dans la même SQLite ; deux traitements maximum dans un processus. Après interruption, échec explicite et nettoyage, puis renvoi manuel. Les fournisseurs externes exigent un double accord : configuration serveur et consentement de l'import.
+34. Adapter l'environnement de test à Windows : tzdata, identifiants courts pour les cas contenant des fichiers volumineux et paire de sockets interne d'asyncio. Les connexions API restent interdites dans les tests hors ligne.

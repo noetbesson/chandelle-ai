@@ -4,3 +4,6 @@ pydantic==2.13.5
 httpx==0.28.1
 pytest==9.1.1
 openai==3.19.2
+ffmpeg-python==0.2.0
+python-multipart==0.0.22
+tzdata==2025.3
