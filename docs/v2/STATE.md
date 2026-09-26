@@ -113,3 +113,32 @@ Quota atomique et persistant pour les appels Discover/discussions/planification 
 Validation : 206 tests Python hors réseau ; quatre suites Node, vérification des routes frontend, parcours réel Edge 375 px réussis. Après les derniers ajustements de validation, 32 tests ciblés supplémentaires réussis. Aucun appel OpenAI réel ni crédit consommé par ces vérifications. Pas de commit, push ni publication.
 
 Reprise : lire la section de lancement OpenAI dans CONTRACTS.md. Configurer la clé hors chat, activer les deux indicateurs côté serveur, lancer scripts/run_ai.ps1 puis effectuer une recherche ciblée avec son consentement. Vérifier un vrai résultat cité et le compteur avant d'élargir. Le serveur temporaire de test est arrêté en fin de vérification.
+## Transfert de discovery — 26 septembre 2026
+
+La branche locale `feature/discovery` ajoute au nouveau dépôt la collecte
+Responses/web_search depuis l'ancien dépôt, le contrat Activity officiel, le
+cache local de cinq activités réelles vérifiées, la réponse brute du premier
+test et huit tests hors ligne. La clé `.env` n'a pas été copiée.
+Les modules `C_discovery/service.py`, `legacy.py` et `__init__.py` existants
+sont conservés. Le catalogue V2 de la démo n'est pas encore alimenté par ce
+nouveau cache ; le transfert porte les fichiers de découverte sans modifier
+le comportement de l'API existante. Voir DECISIONS et TEST_MATRIX pour les
+contrats et validations de ce transfert.
+
+## Discovery — synchronisation du 26 septembre 2026
+
+La branche locale `feature/discovery` intègre le contrat Activity, `.env.example` et le code de collecte OpenAI. Le cache local contient quatre activités vérifiées issues du second test limité à cinq résultats. La recherche live reste désactivée dans `.env` ; le catalogue V2 n’utilise pas encore ce cache et continue de proposer des exemples fictifs.
+
+
+## Discovery visible dans le frontend
+
+La page Discover lit maintenant `/api/v2/activities/real` et affiche les quatre fiches du cache local, avec lien vers leur page source et mention de vérification des horaires. Le catalogue fictif reste disponible pour composer les programmes. Les fiches réelles ne sont pas encore planifiables faute de prix, durée et coordonnées vérifiés ; L’affichage du cache ne déclenche aucun appel OpenAI. Le formulaire de recherche web distinct peut en déclencher un après activation serveur et consentement.
+
+## Fusion des branches : validation en attente
+
+Les résultats de tests ci-dessus concernent les branches avant fusion.
+La version combinée doit encore être testée, notamment l’affichage du
+cache réel et le formulaire de recherche web dans Discover.
+
+Le quota de la recherche web interactive ne couvre pas automatiquement
+la commande de collecte importée de feature/discovery.

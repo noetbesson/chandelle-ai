@@ -55,3 +55,9 @@
 40. Garder les réponses web dans un cache privé, pas dans le catalogue planifiable, tant que le prix, les dates et la localisation ne sont pas validés. La présence d'une citation prouve une référence, pas une disponibilité ni l'exactitude de chaque phrase.
 41. Avec les 50 EUR de crédit annoncés, démarrer à 1 USD/jour et 10 USD de réserves cumulées ; ne pas engager tout le crédit. Comptage conservateur par tentative, transaction SQLite immédiate, zéro retry SDK. Bloquer les modèles sans allocation validée. Les dépenses hors de cette base et les fournisseurs Reels restent hors compteur.
 42. Réutiliser l'extraction et les faits de conversation existants, avec vocabulaire français local et horizon temporaire. Ne pas envoyer les notes personnelles du partenaire à la recherche web. L'utilisateur choisit séparément l'analyse cloud et la visibilité des faits enregistrés.
+## Transfert de discovery — 26 septembre 2026
+
+31. Ajouter la collecte OpenAI Responses dans `C_discovery` à côté des services V1/V2 existants. La collecte reste une commande manuelle, désactivée sans `DISCOVERY_ENABLE_LIVE=true`, plafonnée à cinq activités et une requête Responses par exécution. `data/activities.json` est un cache local validé selon `backend/shared/activity.json` ; les scores personnalisés restent `null` dans ce cache. Le ranking du service V2 existant reste distinct. Conserver `service.py`, `legacy.py` et les tests historiques. Aligner la dépendance sur OpenAI 3 déjà présent et ajouter `python-dotenv`. Le transfert du cache ne branche pas encore ce cache sur le catalogue V2 servi par l'API.
+
+
+31. Discovery réel : exposer le cache Activity validé via `GET /api/v2/activities/real` et l’afficher séparément des 76 exemples fictifs. Aucun chargement web au démarrage ou à l’affichage. Les fiches sans prix, durée ou coordonnées restent consultables avec lien source, mais ne deviennent pas des candidats E : aucune donnée de planification n’est inventée.

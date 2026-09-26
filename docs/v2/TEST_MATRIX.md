@@ -89,6 +89,15 @@ installation de dépendance n’a été exécuté pour le nettoyage.
 Les chemins figurant dans les preuves précédentes restent historiques. Commande
 courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépendance.
 
+## Transfert de discovery — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s backend/streams/C_discovery/tests -q` : **8 tests réussis**, aucun appel OpenAI live.
+- `bash scripts/check.sh` : **149 tests Python et 5 sous-tests réussis** ; la suite s'arrête ensuite avec `node: command not found` (code 127). Les contrôles JavaScript n'ont pas été exécutés dans cet environnement.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/verify_frontend_api.py` : parcours API Python réussi.
+- Validation locale du cache : **5 activités** conformes au modèle Pydantic Activity, `match_score` et `why` à `null`.
+- `bash -n scripts/check.sh scripts/run.sh scripts/reset_demo.sh` et `git diff --check` : réussis.
+- Aucun test live ni appel API pendant ce transfert. Le fichier `.env` n'est pas présent dans le nouveau dépôt ; le cache brut et normalisé provient du premier test effectué dans l'ancien dépôt.
+
 ## Regroupement des tests et retrait des noms de livraison
 
 - Comparaison AST des fonctions `test_*` avant/après regroupement : **100 fonctions strictement identiques**, signatures et assertions comprises ; 13 fichiers deviennent 8. Les imports nécessaires sont adaptés hors des fonctions.
@@ -194,3 +203,21 @@ non liés à ce changement sont conservés.
 - `git diff --check` : PASS. Avertissements de conversion LF/CRLF seulement.
 
 Limites : aucun appel OpenAI réel, aucune activité internet réellement ingérée lors des tests. Les réponses sourcées sont simulées dans les tests API. L'UI a été vérifiée avec configuration désactivée ; intégration fournisseur et qualité de recherche nécessitent une clé configurée et un essai réel. Les tests prouvent des changements de classement locaux, pas la disponibilité des lieux.
+## Synchronisation Discovery — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 /private/tmp/chandelle-ai-inspect/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests backend/streams/C_discovery/tests` : **149 passed, 5 subtests passed**, code 0 ; tests hors ligne, aucun appel OpenAI. Exécution dans le dépôt local après fusion des branches.
+- Vérification locale du contrat Activity, des quatre fiches (`match_score` et `why` à null), de `.env.example`, et absence de `.env` ou `backend/api` dans le diff préparé : PASS.
+
+
+## Cache Discovery affiché — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 /private/tmp/chandelle-ai-inspect/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests backend/streams/C_discovery/tests` : **150 passed, 5 subtests passed**, code 0, exécution hors ligne dans la copie de travail.
+- Le test API ajouté vérifie quatre Activity réelles, leurs liens sources, leurs champs `match_score`/`why` nuls et leur absence des programmes calculés.
+- Vérification JavaScript par Node indisponible dans cet environnement (`node: command not found`) ; syntaxe/frontend à valider ultérieurement sur une machine avec Node.
+
+## Validation de la pull request #3
+
+Les résultats ci-dessus sont historiques et ne valident pas la présente
+fusion. Après résolution des conflits, relancer les tests Python des
+deux branches, les tests JavaScript et le parcours Discover combiné.
+Ne pas additionner les nombres de tests annoncés.

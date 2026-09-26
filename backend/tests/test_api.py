@@ -70,6 +70,19 @@ def query(client,member,**extra):
     return response.json()
 
 
+def test_real_discovery_cache_is_visible_without_entering_unverified_plans(client):
+    _, member, _ = ready(client)
+    response = client.get(PREFIX + '/activities/real', headers=headers(member))
+    assert response.status_code == 200
+    activities = response.json()['items']
+    assert len(activities) == 4
+    assert all(item['source'] == 'openai_web' and item['website'].startswith('https://') for item in activities)
+    assert all(item['match_score'] is None and item['why'] is None for item in activities)
+    ids = {item['id'] for item in activities}
+    plans = query(client, member)['plans']
+    assert all(not ids.intersection(activity['id'] for activity in plan['activities']) for plan in plans)
+
+
 def test_first_run_resume_idempotency_private_handoff_and_unlock(client):
     couple=create(client);a,b=couple['members'];cid=couple['couple_id']
     assert client.get(PREFIX+'/activities',headers=headers(a)).status_code==409
