@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS v2_reel_jobs(
  backend TEXT NOT NULL,error TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS v2_reel_jobs_owner ON v2_reel_jobs(couple_id,owner_id,fingerprint);
 INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('reels_memory',1);
+CREATE TABLE IF NOT EXISTS v2_ai_calls(id TEXT PRIMARY KEY,created_at TEXT NOT NULL,kind TEXT NOT NULL,reserve_micro_usd INTEGER NOT NULL,outcome TEXT NOT NULL,usage TEXT);
+CREATE TABLE IF NOT EXISTS v2_web_cache(owner_id TEXT NOT NULL,cache_key TEXT NOT NULL,payload TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(owner_id,cache_key));
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('ai_discovery',1);
+
 '''
 
 class ManagedConnection(sqlite3.Connection):

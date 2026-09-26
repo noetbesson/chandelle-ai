@@ -107,3 +107,49 @@ Déduplication par propriétaire et URL canonique ou hash du fichier. Une URL d�
 le même import même si la légende change : corriger ensuite la mémoire existante.
 Un job ne peut pas être consulté par l'autre membre ; l'effacement du profil annule
 ses jobs avant qu'ils puissent réécrire des faits. Les vidéos restent temporaires.
+
+## Contrat de partage mobile PWA
+
+Manifest share_target : POST multipart /api/receive-share, champs title/text/url
+et fichier video (MP4/MOV). Le service worker valide et conserve temporairement le
+contenu dans IndexedDB chandelle-share-inbox, puis redirige en 303 vers
+/partager?id=<UUID>. Aucun titre, URL source, jeton ou texte dans cette redirection.
+La route serveur de secours ne consomme pas le fichier et renvoie 409 avec aide.
+
+Le navigateur conserve au maximum cinq brouillons pendant 24 h (nettoyage au
+prochain accès), éventuellement owner=couple_id:member_id et jobId. Ces données
+ne sont pas la mémoire et ne sont pas synchronisées vers d'autres appareils.
+L'absence de session ouvre l'onboarding, le profil n'est jamais choisi par défaut.
+Après choix, la même identité est vérifiée avant/après chaque réponse asynchrone.
+La date de réception n'est jamais envoyée comme date d'un ancien like ou favori.
+
+Un fichier passe par l'upload authentifié existant et son job. Un lien/texte seul
+passe par /api/v2/inspirations/import après confirmation explicite. Les deux
+produisent des propositions privées à confirmer dans l'écran Inspirations.
+Aucun nouveau schéma SQL, fournisseur ou backend. Routes publiques ajoutées :
+/manifest.json, /sw.js, /installer, /partager. La page de réception est no-store.
+
+## Discover web et budget OpenAI
+
+POST /api/v2/discovery/web, authentification et entretiens terminés :
+`{text: string[3..800], cloud_consent: bool, use_shared_interests: bool=false}`.
+Sans consentement : 422. Sans activation/clés, quota dépassé ou fournisseur en erreur : résultat status=unavailable avec reason sûr et sources vides. Succès : status=completed, mode=openai_web, answer, segments avec URLs de citations, sources, searched_at, verification, model, cached. L'UI échappe tous les textes et rend les références HTTPS publiques cliquables. Aucun HTML fournisseur exécuté. Une réponse sans recherche terminée et sans citation est refusée.
+
+`v2_web_cache(owner_id,cache_key,payload,created_at)` : clé incluant requête, thèmes, date et modèle ; six heures, nettoyage à l'accès, suppression lors de l'effacement du profil. Aucun cache partagé entre membres. Les tentatives simultanées restent soumises au quota ; le cache ne constitue pas un ordonnanceur distribué.
+
+GET /api/v2/ai/budget authentifié : compteurs de réserves quotidiennes et totales en USD, pas une mesure du crédit distant. `v2_ai_calls` contient seulement date, genre d'appel, réserve, résultat et tokens numériques disponibles. Aucun prompt, clé ni identifiant de personne. BEGIN IMMEDIATE réserve avant l'appel, sans remboursement automatique en cas d'échec. Indépendant du reset démo. Extension SQL ai_discovery=1, même base.
+
+POST /api/v2/conversations conserve son contrat et ajoute reply/fallback à la réponse. Le choix mode=openai dans le formulaire matérialise le consentement d'envoyer le message à OpenAI. La réponse UI est un accusé d'enregistrement des faits, pas encore une réponse conversationnelle générée. Les budgets extraits ne sont enregistrés que si leur unité personne/couple est explicitée.
+
+### Lancement local Windows avec OpenAI
+
+1. Copier `backend/integrations/.env.example` à la racine du dépôt sous `.env` (ignoré par Git). Ne pas écraser un fichier .env préexistant.
+2. Renseigner OPENAI_API_KEY dans ce fichier local, jamais dans le chat. Mettre OPENAI_ENABLED=1 et OPENAI_WEB_ENABLED=1. Conserver les limites 1 et 10 pour commencer. Laisser REELS_LIVE_ENABLED=0 : les fournisseurs vidéo ont une tarification indépendante.
+3. Depuis la racine : `powershell -File scripts/run_ai.ps1 -Port 8000`. Ce lanceur charge les variables OPENAI_/REELS_ sans exécuter le contenu du fichier. Le lancement historique uvicorn ne charge pas automatiquement .env. Le script lie le serveur à 127.0.0.1, sans déploiement.
+4. Ouvrir http://127.0.0.1:8000, terminer les profils, puis Discover > Rechercher une sortie sur le web. Cocher le consentement et envoyer une demande précise. Voir le quota via le bouton dédié. Dans Memories, utiliser le nouveau formulaire pour alimenter le profil.
+
+Modèles conservés : gpt-4.1-mini pour texte/web ; text-embedding-3-small pour l'adaptateur d'embedding qui reste non utilisé par la mémoire locale. Modifier le modèle exige de revoir sa réserve, sinon model_not_budgeted. Les plafonds de réserve ne garantissent pas le montant de la facture fournisseur ; garder un compte/projet de test dédié et contrôler la consommation réelle.
+
+Références consultées : [outil web OpenAI](https://developers.openai.com/api/docs/guides/tools-web-search), [tarification](https://developers.openai.com/api/docs/pricing). Le web_search ajoute son coût aux tokens ; gpt-4.1-mini applique un bloc de tokens de recherche. Les réserves locales sont des choix prudents de fonctionnement, pas des prix contractuels.
+
+Le smoke historique scripts/live_openai_smoke.py exige toujours RUN_LIVE_OPENAI_SMOKE=1 et utilise désormais la même base et le même quota. Il n'a pas été exécuté en live lors de cette tranche.

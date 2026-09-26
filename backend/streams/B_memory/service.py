@@ -326,8 +326,8 @@ class MemoryServiceV2:
         for fact in facts:
             value = fact["value"]
             weight = 1.0
-            if fact['source']=='inspiration_import' and isinstance(value,dict):
-                if not value.get('confirmed'):continue
+            if fact['source'] in ('inspiration_import','conversation') and isinstance(value,dict):
+                if fact['source']=='inspiration_import' and not value.get('confirmed'):continue
                 if value.get('horizon')=='temporary':
                     stamp=value.get('signal_at')
                     try:

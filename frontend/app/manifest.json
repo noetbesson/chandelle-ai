@@ -1,0 +1,14 @@
+{
+  "id": "/", "name": "Chandelle", "short_name": "Chandelle", "lang": "fr",
+  "start_url": "/", "scope": "/", "display": "standalone",
+  "background_color": "#faf5ed", "theme_color": "#693b49",
+  "description": "Gardez vos inspirations de sorties dans votre mémoire personnelle.",
+  "icons": [
+    {"src":"/v2-static/icons/chandelle-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"/v2-static/icons/chandelle-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ],
+  "share_target": {
+    "action": "/api/receive-share", "method": "POST", "enctype": "multipart/form-data",
+    "params": {"title":"title","text":"text","url":"url","files":[{"name":"video","accept":["video/mp4","video/quicktime",".mp4",".mov"]}]}
+  }
+}

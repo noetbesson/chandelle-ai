@@ -140,3 +140,57 @@ les **10 tests d'intégration vidéo ont été rejoués et passent en 11,07 s**
 API des écrans passent également. `git diff --check` ne signale aucune erreur.
 Les rapports bruts restent dans `.runtime/`, ignoré par Git. Aucun test fournisseur
 live, commit, push ou déploiement.
+
+## Réception PWA depuis Instagram/TikTok
+
+Code ajouté et testé sur la branche locale maxime/memory-reels, sans push ni
+publication. La copie TypeScript supprimée précédemment n'est pas recréée.
+
+- `scripts/test_offline.py --tb=short --junitxml=.runtime/pwa-regression.xml` :
+  **198 passed en 97,09 s**, réseau fournisseurs interdit. Les 196 cas existants
+  restent présents, plus deux tests de livraison PWA et de refus d'upload anonyme.
+- `node frontend/tests/test_ui.mjs`, `test_experiences.mjs` et `test_share.mjs` :
+  PASS. Validation du partage texte/lien/fichier, type, nom sans extension,
+  taille, URL trompeuse, champs répétés, champ d'identité et métadonnées d'expiration.
+- `node --check` : app.mjs, experiences.mjs, share-page.mjs, share-store.mjs,
+  pwa.mjs et sw.js PASS.
+- `scripts/verify_frontend_api.py` : PASS, entretiens et parcours existants conservés.
+- `scripts/test_share_browser.cjs`, Playwright avec Microsoft Edge, largeur 375 px :
+  PASS. Deux exécutions réussies, dont la dernière inclut la reprise d'un job.
+  Vrai service worker, vraie navigation POST multipart interceptée, vrais blobs
+  IndexedDB, même API FastAPI et vraie extraction FFmpeg d'un MP4 synthétique.
+  Choix de profil obligatoire, lien seul sans fausse transcription, inspiration
+  privée, conflit d'attribution refusé, suivi/reprise du job, suppression,
+  expiration et quota vérifiés. CacheStorage contient uniquement CSS et icônes.
+  Aucun débordement horizontal à 375 px ; captures contrôlées visuellement.
+- Preuves locales ignorées par Git : `.runtime/pwa-regression.xml`,
+  `.runtime/pwa-regression.txt`, `.runtime/pwa-link-mobile.png`,
+  `.runtime/pwa-success-mobile.png`. Base de test séparée dans `.runtime/`,
+  réservée aux fixtures ; aucune nouvelle base mémoire produit.
+- `git diff --check` : PASS.
+
+Le partage natif Android depuis les applications installées n'est PAS validé par
+ces tests : ils simulent la navigation que le système transmet à la PWA, puis
+exécutent réellement toute la réception. À vérifier sur téléphone avec HTTPS et
+installation PWA. Le fichier fourni par Instagram/TikTok n'est pas garanti ; le
+cas lien seul est pris en charge. Sur iOS, l'alternative documentée est l'import
+manuel. Aucun appel Gradium/OpenAI/Pipelex réel ; pas de transcription live annoncée.
+
+Le dossier temporaire de tests de ce tour est `.runtime/pwa-temp` : l'ancien
+répertoire pytest était inaccessible aux permissions courantes. Aucun accès forcé
+à cet ancien dossier. Les données du projet et les fichiers utilisateur préexistants
+non liés à ce changement sont conservés.
+
+## Discover OpenAI et conversations, 26 septembre 2026
+
+- Première vérification : erreur de syntaxe dans une expression régulière et lecture Windows CP1252, corrigées avant validation. Aucun succès annoncé sur cet essai.
+- `python scripts/test_offline.py backend/tests/test_openai.py backend/tests/test_api.py backend/tests/test_architecture.py --basetemp=.runtime/ai-test-second --tb=short` : 52 PASS.
+- `python scripts/test_offline.py backend/tests/test_ai_discovery.py --basetemp=.runtime/ai-new-tests --tb=short` : 8 PASS. SQLite réelle, réponses OpenAI simulées, cache isolé et expiration, sources obligatoires, refus sans consentement/configuration/quota, erreurs expurgées, quota concurrent persistant, conversations françaises, exclusion effective et suppression.
+- `python scripts/test_offline.py --basetemp=.runtime/ai-full-tests --tb=short` : 206 PASS en 69,84 s ; réseau interdit. Inclut garder/remplacer, Reels/PWA et isolation mémoire.
+- Derniers ajustements (unités de budget explicites, refus durables, validation des URLs avec l'utilitaire existant, extraction française limitée aux déclarations directes) : `python scripts/test_offline.py backend/tests/test_ai_discovery.py backend/tests/test_openai.py backend/tests/test_architecture.py --basetemp=.runtime/ai-final-focused --tb=short` : 32 PASS.
+- `node frontend/tests/test_ai.mjs`, test_ui.mjs, test_experiences.mjs, test_share.mjs : PASS.
+- `node --check frontend/app/app.mjs` et ai.mjs : PASS. `python scripts/verify_frontend_api.py` : PASS. Analyse syntaxique PowerShell scripts/run_ai.ps1 : PASS (serveur live non activé).
+- `node scripts/test_ai_browser.cjs` avec PLAYWRIGHT_MODULE pointant vers le runtime installé : PASS dans Edge réel à 375x812, API sur 127.0.0.1:8315, base de fixture .runtime/ai-browser-test.sqlite3, fournisseurs désactivés. Discover indique clairement non configuré, modal quota, message français enregistré en mémoire, aucun débordement horizontal, aucun appel payant. Deux exécutions réussies ; captures viewport .runtime/ai-discover-mobile.png et ai-memory-mobile.png. Capture Discover inspectée visuellement.
+- `git diff --check` : PASS. Avertissements de conversion LF/CRLF seulement.
+
+Limites : aucun appel OpenAI réel, aucune activité internet réellement ingérée lors des tests. Les réponses sourcées sont simulées dans les tests API. L'UI a été vérifiée avec configuration désactivée ; intégration fournisseur et qualité de recherche nécessitent une clé configurée et un essai réel. Les tests prouvent des changements de classement locaux, pas la disponibilité des lieux.

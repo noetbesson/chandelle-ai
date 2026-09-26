@@ -2,6 +2,7 @@
 from datetime import datetime
 from uuid import uuid4
 import json
+import os
 from pydantic import BaseModel, Field
 from typing import Literal
 from backend.db import now, encoded
@@ -46,9 +47,9 @@ class PlanningService:
         rid=uuid4().hex
         trace=[]
         try:
-            adapter=OpenAIAdapter(enabled=request.mode=='openai' and OpenAIAdapter().enabled)
+            adapter=OpenAIAdapter(enabled=request.mode=='openai' and OpenAIAdapter().enabled,db=self.db)
             parsed=adapter.parse(request.text)
-            trace.append({'stage':'parse','detail':'Validated request and explicit constraints','mode':adapter.last_mode})
+            trace.append({'stage':'parse','detail':'Validated request and explicit constraints','mode':adapter.last_mode,'fallback':adapter.last_fallback})
             context=self.memory.planning_context(cid)
             trace.append({'stage':'memories','detail':'Loaded separately consent-filtered Person A, Person B and Couple context'})
             windows=AvailabilityService(self.db).windows(cid,request.time_window)
@@ -85,7 +86,7 @@ class PlanningService:
             result=[]
             for plan in plans[:request.max_plans]:
                 selected=[next(x for x in scored if x['activity']['id']==a.id) for a in plan.activities]
-                explanation=adapter.explain([{'id':x['activity']['id'],'title':x['activity']['title'],'person_a_score':x['person_a_score'],'person_b_score':x['person_b_score']} for x in selected]) if request.mode=='openai' else None
+                explanation=adapter.explain([{'id':x['activity']['id'],'title':x['activity']['title'],'person_a_score':x['person_a_score'],'person_b_score':x['person_b_score']} for x in selected]) if request.mode=='openai' and os.getenv('OPENAI_PLAN_EXPLANATIONS')=='1' else None
                 if adapter.last_mode=='openai':mode='openai'
                 item=self._decorate(plan,selected,cid,mode,window,budget)
                 if explanation is not None:item['reason']=explanation.explanation

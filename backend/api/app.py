@@ -78,6 +78,8 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     from starlette.exceptions import HTTPException as StarletteHTTPException
     v2_path = Path(db_path) if db_path is not None else Path(__file__).resolve().parents[2] / '.runtime' / 'chandelle_v2.sqlite3'
     install_routes(app, v2_path)
+    from backend.api.pwa import install_pwa
+    install_pwa(app)
     v2_static = Path(__file__).resolve().parents[2] / 'frontend' / 'app'
     app.mount('/v2-static', StaticFiles(directory=v2_static), name='v2-static')
 
