@@ -175,16 +175,18 @@ def _fits(slots: tuple[Slot, ...], budget: float) -> bool:
 
 
 def _ranked(slots: list[Slot], budget: float, max_plans: int, required: set[str] | None = None,
-            replaced: str | None = None, preserved: dict[str, PlannedActivity] | None = None) -> list[DatePlan]:
+            replaced: str | None = None, preserved: dict[str, PlannedActivity] | None = None, max_activities: int = 4, must_include: set[str] | None = None) -> list[DatePlan]:
     # Bound the search while retaining the best-scored candidates at each start time.
     fixed = [slot for slot in slots if required and slot.activity.id in required]
     options = fixed + sorted((slot for slot in slots if slot not in fixed), key=lambda s: s.score, reverse=True)[:max(0, 60 - len(fixed))]
     options.sort(key=lambda s: (s.start, s.activity.id))
     choices: list[tuple[float, tuple[Slot, ...]]] = []
-    for size in range(1, min(4, len(options)) + 1):
+    for size in range(1, min(max_activities, len(options)) + 1):
         for combo in combinations(options, size):
             ids = {s.activity.id for s in combo}
             if required is not None and (not required.issubset(ids) or replaced in ids or len(ids) != len(required) + 1):
+                continue
+            if must_include and not must_include.issubset(ids):
                 continue
             if _fits(combo, budget):
                 choices.append((_plan_score(combo), combo))
@@ -192,9 +194,9 @@ def _ranked(slots: list[Slot], budget: float, max_plans: int, required: set[str]
     return [_make_plan(combo, i + 1, preserved) for i, (_, combo) in enumerate(choices[:max_plans])]
 
 
-def generate(request: PlanRequest) -> tuple[list[DatePlan], dict[str, str]]:
+def generate(request: PlanRequest, *, max_activities: int = 4, must_include: set[str] | None = None) -> tuple[list[DatePlan], dict[str, str]]:
     slots, rejected, rules = _prepare(request)
-    plans = _ranked(slots, rules.budget, request.max_plans)
+    plans = _ranked(slots, rules.budget, request.max_plans, max_activities=max_activities, must_include=must_include)
     if not plans:
         raise NoFeasiblePlan("No feasible date plan for the window, budget and constraints")
     return plans, rejected

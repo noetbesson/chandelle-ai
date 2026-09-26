@@ -1,0 +1,5 @@
+# UX
+
+Warm ivory, terracotta and plum, large readable type, visible keyboard focus, mobile bottom navigation and desktop sidebar. All data from V2 API; asynchronous busy/errors/empty states.
+Welcome creates named pair. A private 7-step interview with skip/privacy controls, persistent step progress. Clear screen then explicit handoff to B; refresh resumes server status. B completion leads safe shared summary and Home. Tokens local device storage, active member switch clears previous view. Explain that anyone with access to this local device can switch identities; no production authentication claim.
+Home: mock next slot, suggestion feed actions, saved plans, safe shared insight. Ask: text and filters, actual stage trace, timeline/detail/keep/replace/accept. Discover: catalog filters, source labels, fairness scores, activity details and individual saves/likes/dislikes. Memories: own-person/private view, partner SHARED-only view, Couple derived view, CRUD/privacy/provenance. History: plans/status/detail/review/photo upload/delete. Settings: identity handoff, onboarding edit, integration/model/schema metadata, API docs and environment-gated developer seed/reset.

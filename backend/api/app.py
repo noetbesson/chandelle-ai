@@ -26,6 +26,10 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     def demo_page() -> FileResponse:
+        return FileResponse(Path(__file__).resolve().parents[2] / "frontend" / "v2" / "index.html")
+
+    @app.get("/v1/demo", include_in_schema=False)
+    def legacy_demo_page() -> FileResponse:
         return FileResponse(static_dir / "index.html")
 
     @app.get("/health")
@@ -68,6 +72,37 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         except PlanningFailure as exc:
             raise HTTPException(status_code=422, detail={"run_id": exc.run_id, "error": str(exc)}) from exc
 
+    from backend.api.v2 import install_v2
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    from backend.streams.E_orchestrator.planner import NoFeasiblePlan
+    v2_path = Path(db_path) if db_path is not None else Path(__file__).resolve().parents[2] / '.runtime' / 'chandelle_v2.sqlite3'
+    install_v2(app, v2_path)
+    v2_static = Path(__file__).resolve().parents[2] / 'frontend' / 'v2'
+    app.mount('/v2-static', StaticFiles(directory=v2_static), name='v2-static')
+
+    @app.get('/app', include_in_schema=False)
+    def v2_page():
+        return FileResponse(v2_static / 'index.html')
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request, exc):
+        if request.url.path.startswith('/api/v2'):
+            return JSONResponse(status_code=422, content={'error': {'code': 'validation_error', 'message': 'Invalid request fields'}})
+        return JSONResponse(status_code=422, content={'detail': str(exc)})
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request, exc):
+        if request.url.path.startswith('/api/v2'):
+            return JSONResponse(status_code=exc.status_code, content={'error': {'code': str(exc.status_code), 'message': exc.detail}})
+        return JSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
+
+    async def domain_error(request, exc):
+        status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, KeyError) else 422
+        return JSONResponse(status_code=status, content={'error': {'code': str(status), 'message': str(exc)}})
+    for error in (ValueError, PermissionError, KeyError):
+        app.add_exception_handler(error, domain_error)
     return app
 
 
