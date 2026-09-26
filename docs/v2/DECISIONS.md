@@ -40,3 +40,7 @@
 
 29. Suite à la demande de retirer les fichiers superflus : regrouper les 13 fichiers de tests Python en 8 fichiers par responsabilité dans backend/tests, sans suppression de fonction ni d’assertion. Les doublons visuels de fichiers V1/V2 ne sont pas assimilés à une couverture fonctionnelle redondante.
 30. Retirer les versions des noms de fichiers applicatifs : frontend/app, api/routes.py, requirements.txt, scripts/run.sh/init_demo.py/reset_demo.sh/test_offline.py. Maintenir les chemins HTTP, identifiants SQL, confirmation de reset et mémoire documentaire docs/v2 pour éviter une migration inutile. Les commandes historiques consignées précédemment restent inchangées.
+
+## Transfert de discovery — 26 septembre 2026
+
+31. Ajouter la collecte OpenAI Responses dans `C_discovery` à côté des services V1/V2 existants. La collecte reste une commande manuelle, désactivée sans `DISCOVERY_ENABLE_LIVE=true`, plafonnée à cinq activités et une requête Responses par exécution. `data/activities.json` est un cache local validé selon `backend/shared/activity.json` ; les scores personnalisés restent `null` dans ce cache. Le ranking du service V2 existant reste distinct. Conserver `service.py`, `legacy.py` et les tests historiques. Aligner la dépendance sur OpenAI 3 déjà présent et ajouter `python-dotenv`. Le transfert du cache ne branche pas encore ce cache sur le catalogue V2 servi par l'API.

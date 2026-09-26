@@ -89,6 +89,15 @@ installation de dépendance n’a été exécuté pour le nettoyage.
 Les chemins figurant dans les preuves précédentes restent historiques. Commande
 courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépendance.
 
+## Transfert de discovery — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s backend/streams/C_discovery/tests -q` : **8 tests réussis**, aucun appel OpenAI live.
+- `bash scripts/check.sh` : **149 tests Python et 5 sous-tests réussis** ; la suite s'arrête ensuite avec `node: command not found` (code 127). Les contrôles JavaScript n'ont pas été exécutés dans cet environnement.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/verify_frontend_api.py` : parcours API Python réussi.
+- Validation locale du cache : **5 activités** conformes au modèle Pydantic Activity, `match_score` et `why` à `null`.
+- `bash -n scripts/check.sh scripts/run.sh scripts/reset_demo.sh` et `git diff --check` : réussis.
+- Aucun test live ni appel API pendant ce transfert. Le fichier `.env` n'est pas présent dans le nouveau dépôt ; le cache brut et normalisé provient du premier test effectué dans l'ancien dépôt.
+
 ## Regroupement des tests et retrait des noms de livraison
 
 - Comparaison AST des fonctions `test_*` avant/après regroupement : **100 fonctions strictement identiques**, signatures et assertions comprises ; 13 fichiers deviennent 8. Les imports nécessaires sont adaptés hors des fonctions.

@@ -1,0 +1,167 @@
+[
+  {
+    "kind": "event",
+    "type": "concert + expo + DJ set",
+    "name": "ELIKYA – concert narratif immersion femmes afro-descendantes",
+    "description": "Performance immersive mêlant trois concerts narrés, expo et DJ set au Consulat Voltaire.",
+    "tags": [
+      "concert",
+      "expo",
+      "DJ",
+      "féminin",
+      "immersif"
+    ],
+    "start": "2026-09-26T19:00:00+02:00",
+    "end": "2026-09-27T00:30:00+02:00",
+    "opening_hours": null,
+    "price_per_person": null,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "14 Avenue Parmentier, Paris 11e",
+      "arrondissement": 11
+    },
+    "booking_url": null,
+    "website": "https://www.paris.fr/evenements/elikya-un-concert-narratif-qui-celebre-les-femmes-afrodescendantes-118282",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_d1a57ce51ab757ecab9a6cbe61db8a9f",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T15:58:26+02:00"
+  },
+  {
+    "kind": "event",
+    "type": "projection documentaire",
+    "name": "Ocean Days – projection de The Last Dive",
+    "description": "Projection de The Last Dive au MK2 Odéon Saint-Germain pendant le festival Ocean Days.",
+    "tags": [
+      "festival",
+      "documentaire",
+      "atelier",
+      "écologie"
+    ],
+    "start": "2026-09-27T18:00:00+02:00",
+    "end": "2026-09-27T20:00:00+02:00",
+    "opening_hours": null,
+    "price_per_person": 7.0,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "113 boulevard Saint-Germain, Paris 6e",
+      "arrondissement": 6
+    },
+    "booking_url": null,
+    "website": "https://www.paris.fr/evenements/ocean-days-le-festival-engage-pour-comprendre-et-agir-pour-l-ocean-124496",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_9589b20a2e6356fe9cb1bed09dac09a1",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T15:58:26+02:00"
+  },
+  {
+    "kind": "event",
+    "type": "exposition paysage",
+    "name": "Histoires de paysages – Monet à Hockney",
+    "description": "Expo d’œuvres de Monet, Hockney et d’autres sur le thème du paysage au musée Marmottan-Monet.",
+    "tags": [
+      "exposition",
+      "peinture",
+      "paysage"
+    ],
+    "start": "2026-09-24T10:00:00+02:00",
+    "end": "2027-01-31T18:00:00+02:00",
+    "opening_hours": null,
+    "price_per_person": null,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "2, rue Louis Boilly, Paris 16e",
+      "arrondissement": 16
+    },
+    "booking_url": null,
+    "website": "https://www.paris.fr/evenements/histoires-de-paysages-de-monet-a-hockney-1890-2026-117972",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_cae7cca941ec5ac7a23d3e1ed28fe173",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T15:58:26+02:00"
+  },
+  {
+    "kind": "event",
+    "type": "défilé parade LGBTQIA+",
+    "name": "Marche des Fiertés 2026",
+    "description": "Grande parade engagée et festive LGBTQIA+, chars et cortèges de la Place d’Italie à Bastille.",
+    "tags": [
+      "parade",
+      "festival",
+      "LGBTQIA+",
+      "diversité"
+    ],
+    "start": "2026-10-03T13:30:00+02:00",
+    "end": "2026-10-03T23:00:00+02:00",
+    "opening_hours": null,
+    "price_per_person": 0.0,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "Départ Place d’Italie, Paris 13e, arrivée Place de la Bastille",
+      "arrondissement": 13
+    },
+    "booking_url": null,
+    "website": "https://www.paris.fr/evenements/marche-des-fiertes-84545",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_37407c0ee1f051d084c977d5de07d251",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T15:58:26+02:00"
+  },
+  {
+    "kind": "event",
+    "type": "défilé animalier fun",
+    "name": "Paris Sausage Walk – marche des teckels",
+    "description": "Parade conviviale de centaines de teckels sur les Champs‑Élysées en soutien à une association.",
+    "tags": [
+      "parade",
+      "animaux",
+      "militant",
+      "insolite"
+    ],
+    "start": "2026-10-04T11:00:00+02:00",
+    "end": "2026-10-04T13:00:00+02:00",
+    "opening_hours": null,
+    "price_per_person": 0.0,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "Avenue des Champs‑Élysées, Paris 8e",
+      "arrondissement": 8
+    },
+    "booking_url": null,
+    "website": "https://www.paris.fr/evenements/paris-sausage-walk-2025-la-grande-marche-des-teckels-99570",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_49abac8dc4655d329e0c3f153fc761ff",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T15:58:26+02:00"
+  }
+]

@@ -54,3 +54,15 @@ sont identiques (141 cas avec paramétrisation). Aucun scénario supprimé.
 Code courant sans suffixe de livraison : frontend/app, api/routes.py,
 backend/requirements.txt et scripts/run.sh. Routes et noms SQL versionnés conservés.
 `bash scripts/check.sh` passe après ces changements.
+
+## Transfert de discovery — 26 septembre 2026
+
+La branche locale `feature/discovery` ajoute au nouveau dépôt la collecte
+Responses/web_search depuis l'ancien dépôt, le contrat Activity officiel, le
+cache local de cinq activités réelles vérifiées, la réponse brute du premier
+test et huit tests hors ligne. La clé `.env` n'a pas été copiée.
+Les modules `C_discovery/service.py`, `legacy.py` et `__init__.py` existants
+sont conservés. Le catalogue V2 de la démo n'est pas encore alimenté par ce
+nouveau cache ; le transfert porte les fichiers de découverte sans modifier
+le comportement de l'API existante. Voir DECISIONS et TEST_MATRIX pour les
+contrats et validations de ce transfert.
