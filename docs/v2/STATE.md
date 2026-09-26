@@ -54,3 +54,19 @@ sont identiques (141 cas avec paramétrisation). Aucun scénario supprimé.
 Code courant sans suffixe de livraison : frontend/app, api/routes.py,
 backend/requirements.txt et scripts/run.sh. Routes et noms SQL versionnés conservés.
 `bash scripts/check.sh` passe après ces changements.
+
+## Transfert de discovery — 26 septembre 2026
+
+La branche locale `feature/discovery` ajoute au nouveau dépôt la collecte
+Responses/web_search depuis l'ancien dépôt, le contrat Activity officiel, le
+cache local de cinq activités réelles vérifiées, la réponse brute du premier
+test et huit tests hors ligne. La clé `.env` n'a pas été copiée.
+Les modules `C_discovery/service.py`, `legacy.py` et `__init__.py` existants
+sont conservés. Le catalogue V2 de la démo n'est pas encore alimenté par ce
+nouveau cache ; le transfert porte les fichiers de découverte sans modifier
+le comportement de l'API existante. Voir DECISIONS et TEST_MATRIX pour les
+contrats et validations de ce transfert.
+
+## Discovery — synchronisation du 26 septembre 2026
+
+La branche locale `feature/discovery` intègre le contrat Activity, `.env.example` et le code de collecte OpenAI. Le cache local contient quatre activités vérifiées issues du second test limité à cinq résultats. La recherche live reste désactivée dans `.env` ; le catalogue V2 n’utilise pas encore ce cache et continue de proposer des exemples fictifs.
