@@ -1,0 +1,122 @@
+[
+  {
+    "kind": "event",
+    "type": "concert",
+    "name": "AJNA au Bataclan",
+    "description": "Concert d’Ajna au Bataclan.",
+    "tags": [
+      "concert"
+    ],
+    "start": "2026-09-26T20:50:00+02:00",
+    "end": null,
+    "opening_hours": null,
+    "price_per_person": null,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "50 Boulevard Voltaire, Paris 11e",
+      "arrondissement": 11
+    },
+    "booking_url": null,
+    "website": "https://www.bataclan.fr/evenement/ajna_2026-06-06_en/",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_710f8662610451ff912e781260e73daf",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T16:48:14+02:00"
+  },
+  {
+    "kind": "event",
+    "type": "concert",
+    "name": "Me Gustas Tu + Sidi Wacho + Flagrants Délire au Bataclan",
+    "description": "Concert Me Gustas Tu avec Sidi Wacho & Flagrants Délire au Bataclan.",
+    "tags": [
+      "concert"
+    ],
+    "start": "2026-10-02T16:00:00+02:00",
+    "end": null,
+    "opening_hours": null,
+    "price_per_person": null,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "50 Boulevard Voltaire, Paris 11e",
+      "arrondissement": 11
+    },
+    "booking_url": null,
+    "website": "https://www.bataclan.fr/en/event/flagrants-delires-me-gustas-tu_2026-10-02/",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_3a73a8e7df3f5024ba734d45634ef4cd",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T16:48:14+02:00"
+  },
+  {
+    "kind": "event",
+    "type": "parade",
+    "name": "Marche des Fiertés",
+    "description": "Grande parade LGBTQIA+ dans les rues de Paris.",
+    "tags": [
+      "parade"
+    ],
+    "start": "2026-10-03T13:30:00+02:00",
+    "end": "2026-10-03T23:00:00+02:00",
+    "opening_hours": null,
+    "price_per_person": 0.0,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "Départ Place d’Italie, Paris 13e",
+      "arrondissement": 13
+    },
+    "booking_url": null,
+    "website": "https://www.paris.fr/evenements/marche-des-fiertes-84545",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_7fea661b0b9f521ea6931c65dbed600f",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T16:48:14+02:00"
+  },
+  {
+    "kind": "event",
+    "type": "expo/performance",
+    "name": "Nanténé Traoré — pays des merveilles",
+    "description": "Exposition « Pays des merveilles » à la Maison européenne de la photographie.",
+    "tags": [
+      "exposition"
+    ],
+    "start": "2026-09-30T11:00:00+02:00",
+    "end": "2026-11-29T19:45:00+01:00",
+    "opening_hours": null,
+    "price_per_person": null,
+    "price_level": null,
+    "location": {
+      "lat": null,
+      "lng": null,
+      "address": "5 rue de Fourcy, Paris 4e",
+      "arrondissement": 4
+    },
+    "booking_url": null,
+    "website": "https://www.paris.fr/evenements/nantene-traore-pays-des-merveilles-117998",
+    "image_url": null,
+    "rating": null,
+    "id": "activity_d71380adb5b958f4bf8490f7b54d6c60",
+    "source": "openai_web",
+    "match_score": null,
+    "why": null,
+    "attribution": "OpenAI web search",
+    "fetched_at": "2026-09-26T16:48:14+02:00"
+  }
+]

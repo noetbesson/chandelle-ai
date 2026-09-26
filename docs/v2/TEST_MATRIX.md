@@ -89,8 +89,22 @@ installation de dépendance n’a été exécuté pour le nettoyage.
 Les chemins figurant dans les preuves précédentes restent historiques. Commande
 courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépendance.
 
+## Transfert de discovery — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s backend/streams/C_discovery/tests -q` : **8 tests réussis**, aucun appel OpenAI live.
+- `bash scripts/check.sh` : **149 tests Python et 5 sous-tests réussis** ; la suite s'arrête ensuite avec `node: command not found` (code 127). Les contrôles JavaScript n'ont pas été exécutés dans cet environnement.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/verify_frontend_api.py` : parcours API Python réussi.
+- Validation locale du cache : **5 activités** conformes au modèle Pydantic Activity, `match_score` et `why` à `null`.
+- `bash -n scripts/check.sh scripts/run.sh scripts/reset_demo.sh` et `git diff --check` : réussis.
+- Aucun test live ni appel API pendant ce transfert. Le fichier `.env` n'est pas présent dans le nouveau dépôt ; le cache brut et normalisé provient du premier test effectué dans l'ancien dépôt.
+
 ## Regroupement des tests et retrait des noms de livraison
 
 - Comparaison AST des fonctions `test_*` avant/après regroupement : **100 fonctions strictement identiques**, signatures et assertions comprises ; 13 fichiers deviennent 8. Les imports nécessaires sont adaptés hors des fonctions.
 - `bash scripts/check.sh` → code 0 : **141 passed in 10.38s**, deux suites Node et parcours API TestClient PASS ; syntaxe JS/shell et `git diff --check` réussis.
 - Commandes courantes : `bash scripts/run.sh` pour lancer, `bash scripts/check.sh` pour vérifier. Les anciens chemins run_v2_demo/test_v2_offline dans les preuves précédentes décrivent les commandes exécutées à ces dates.
+
+## Synchronisation Discovery — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 /private/tmp/chandelle-ai-inspect/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests backend/streams/C_discovery/tests` : **149 passed, 5 subtests passed**, code 0 ; tests hors ligne, aucun appel OpenAI. Exécution dans le dépôt local après fusion des branches.
+- Vérification locale du contrat Activity, des quatre fiches (`match_score` et `why` à null), de `.env.example`, et absence de `.env` ou `backend/api` dans le diff préparé : PASS.

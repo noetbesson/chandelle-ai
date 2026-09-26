@@ -1,0 +1,28 @@
+{
+  "id": "activity_123",
+  "source": "openai_web",
+  "kind": "place",
+  "type": "restaurant",
+  "name": "Nom de l'activité",
+  "description": null,
+  "tags": [],
+  "start": null,
+  "end": null,
+  "opening_hours": null,
+  "price_per_person": null,
+  "price_level": null,
+  "location": {
+    "lat": null,
+    "lng": null,
+    "address": null,
+    "arrondissement": null
+  },
+  "booking_url": null,
+  "website": null,
+  "image_url": null,
+  "rating": null,
+  "match_score": null,
+  "why": null,
+  "attribution": "OpenAI web search",
+  "fetched_at": null
+}
