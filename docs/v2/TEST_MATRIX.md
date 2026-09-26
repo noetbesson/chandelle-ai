@@ -94,3 +94,25 @@ courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépenda
 - Comparaison AST des fonctions `test_*` avant/après regroupement : **100 fonctions strictement identiques**, signatures et assertions comprises ; 13 fichiers deviennent 8. Les imports nécessaires sont adaptés hors des fonctions.
 - `bash scripts/check.sh` → code 0 : **141 passed in 10.38s**, deux suites Node et parcours API TestClient PASS ; syntaxe JS/shell et `git diff --check` réussis.
 - Commandes courantes : `bash scripts/run.sh` pour lancer, `bash scripts/check.sh` pour vérifier. Les anciens chemins run_v2_demo/test_v2_offline dans les preuves précédentes décrivent les commandes exécutées à ces dates.
+
+## Mémoire continue — 2026-09-26
+
+- Baseline `bash scripts/check.sh` : **141 passed in 9.80s**, code 0 ; suites Node,
+  parcours API frontend et syntaxe/diff PASS.
+- Après première intégration, même commande : **141 passed in 9.61s**, code 0,
+  suites Node et parcours API PASS.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_api.py` :
+  **40 passed in 7.53s**, code 0. Isolation, partage, corrections, répétitions,
+  expiration, rollback injecté, effacement et réouverture.
+- `bash scripts/check.sh` : **156 passed in 13.26s**, code 0, Node/API PASS.
+- `bash scripts/check.sh` : **158 passed in 13.24s**, code 0, Node/API PASS,
+  nouveau test frontend du journal PASS. Renvois simultanés et confidentialité
+  après expiration couverts. Aucun fournisseur live appelé.
+- `bash scripts/check.sh` : **160 passed in 13.52s**, code 0, Node/API PASS.
+  Pagination et préférences opposées entre partenaires couvertes.
+- Validation finale `bash scripts/check.sh` : **161 passed in 13.72s**, code 0 ;
+  deux suites Node, journal frontend, parcours API, syntaxe et diff PASS. Correction
+  du questionnaire partagé sans écrasement des préférences du partenaire couverte.
+- `git diff --check` : code 0 ; contrôle `git diff --name-only -- backend/shared backend/streams/A_calendar backend/streams/D_connectors backend/streams/F_booking docs/codex-E docs/night-shift` :
+  sortie vide, code 0. Aucun test navigateur réel, fournisseur live, installation,
+  commit ou publication. Archive préexistante chandelle-code.zip non modifiée.

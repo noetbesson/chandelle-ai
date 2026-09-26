@@ -17,6 +17,8 @@ from backend.streams.F_booking.service import prepare, calendar
 from backend.streams.D_connectors.service import InspirationService, SignalImport, SignalConfirm
 from backend.streams.C_discovery.service import seed_peer_catalog
 from backend.integrations.openai import OpenAIAdapter
+from backend.integrations.gradium import GradiumAdapter, SpeechUnavailable
+from backend.streams.H_conversation.voice import DiscoveryTurn, SpeechText, discovery_turn
 from backend.streams.B_memory.service import MemoryServiceV2
 from backend.streams.C_discovery.service import CatalogService
 from backend.streams.G_proactive.service import SuggestionService
@@ -85,7 +87,7 @@ def install_routes(app,db_path):
     def health():return {'status':'ok','version':'2.0','schema_version':1,'extensions':{'peer_merge':1},'offline':True}
 
     @router.get('/integrations')
-    def integrations():return {'openai':OpenAIAdapter().status(),'calendar':{'mode':'manual_or_demo','timezone':'Europe/Paris','ics_export':True},'catalog':{'mode':'internal_demo'},'schema_version':1,'extensions':{'peer_merge':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
+    def integrations():return {'gradium':GradiumAdapter().status(),'openai':OpenAIAdapter().status(),'calendar':{'mode':'manual_or_demo','timezone':'Europe/Paris','ics_export':True},'catalog':{'mode':'internal_demo'},'schema_version':1,'extensions':{'peer_merge':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
 
     @router.post('/onboarding/couples')
     def create(body:CoupleCreate):return onboarding.create(body)
@@ -185,7 +187,39 @@ def install_routes(app,db_path):
         return catalog.record_state(member['couple_id'],member['id'],aid,body.state)
 
     @router.post('/recommendations/query')
-    def recommend(body:Query,member=Depends(ready)):return planning.query(member['couple_id'],body)
+    def recommend(body:Query,member=Depends(ready)):
+        # Recommendation text belongs to its author, regardless of plan visibility.
+        interaction=conversations.ingest(member,Conversation(text=body.text),OpenAIAdapter(enabled=False))
+        result=planning.query(member['couple_id'],body)
+        return {**result,'conversation_id':interaction['conversation_id']}
+
+
+    @router.post('/discover/chat')
+    def discover_chat(body: DiscoveryTurn, member=Depends(ready)):
+        return discovery_turn(body, lambda text, budget: planning.query(member['couple_id'],
+            Query(text=text, budget=budget, activity_count=2, max_plans=1, mode='offline')))
+
+    @router.post('/voice/transcribe')
+    async def transcribe(request: Request, member=Depends(ready)):
+        if request.headers.get('content-type', '').split(';')[0] != 'audio/wav':
+            raise HTTPException(415, 'Audio WAV requis')
+        audio = bytearray()
+        async for chunk in request.stream():
+            audio.extend(chunk)
+            if len(audio) > 4_500_000:
+                raise HTTPException(413, 'Prise de parole trop longue')
+        try:
+            return {'text': await GradiumAdapter().transcribe(bytes(audio))}
+        except SpeechUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+
+    @router.post('/voice/speak')
+    async def speak(body: SpeechText, member=Depends(ready)):
+        try:
+            audio = await GradiumAdapter().speak(body.text)
+        except SpeechUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+        return Response(audio, media_type='audio/wav', headers={'Cache-Control': 'private, no-store'})
 
     @router.get('/availability')
     def availability_state(member=Depends(ready)):
@@ -296,6 +330,14 @@ def install_routes(app,db_path):
         (upload_dir/item['filename']).unlink(missing_ok=True)
         with db.connect() as c:c.execute('DELETE FROM v2_uploads WHERE id=?',(uid,))
         return {'deleted':True}
+
+    @router.get('/conversations')
+    def conversation_list(limit:int=100,offset:int=0,member=Depends(ready)):
+        return conversations.list(member,limit,offset)
+
+    @router.get('/conversations/{sid}')
+    def conversation_history(sid:str,member=Depends(ready)):
+        return conversations.history(member,sid)
 
     @router.post('/conversations')
     def conversation(body:Conversation,member=Depends(ready)):

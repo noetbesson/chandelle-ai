@@ -40,3 +40,26 @@
 
 29. Suite à la demande de retirer les fichiers superflus : regrouper les 13 fichiers de tests Python en 8 fichiers par responsabilité dans backend/tests, sans suppression de fonction ni d’assertion. Les doublons visuels de fichiers V1/V2 ne sont pas assimilés à une couverture fonctionnelle redondante.
 30. Retirer les versions des noms de fichiers applicatifs : frontend/app, api/routes.py, requirements.txt, scripts/run.sh/init_demo.py/reset_demo.sh/test_offline.py. Maintenir les chemins HTTP, identifiants SQL, confirmation de reset et mémoire documentaire docs/v2 pour éviter une migration inutile. Les commandes historiques consignées précédemment restent inchangées.
+
+31. Mémoire continue (choix utilisateur, 2026-09-26) : une base SQLite avec deux
+    espaces PERSON privés et une projection COUPLE ; pas trois fichiers ni une
+    copie concurrente des faits. Le journal brut reste privé, même lorsque des
+    goûts extraits sont partagés. Historique conservé jusqu'à effacement personnel.
+32. Partage automatique autorisé uniquement pour une allowlist exacte de goûts
+    simples. Un choix de confidentialité explicite prime. Ni modèle ni analyse
+    libre ne peuvent déclarer une information sensible « partageable ».
+33. Les assertions explicites consolident une clé stable par propriétaire, sujet
+    et horizon ; répétition = renforcement, changement de polarité = supersession.
+    Les corrections durables priment sur la sélection initiale du questionnaire
+    dans les seules projections qui sont autorisées à les lire.
+34. Envies ponctuelles séparées, expiration à 30 jours (choix de durée local,
+    ajustable ultérieurement). Leur journal et provenance restent conservés.
+    Les demandes de recommandations passent aussi par H ; extraction locale
+    automatique, aucun appel fournisseur implicite. Les autres signaux structurés
+    restent capturés par les services existants (questionnaire, avis, favoris).
+35. `Database.atomic()` joint les écritures imbriquées d'une interaction dans une
+    transaction SQLite BEGIN IMMEDIATE. Extraction fournisseur avant transaction.
+    Reçu idempotent par utilisateur/clé, empreinte du payload, relecture de l'état
+    courant lors du replay pour éviter de ressusciter un fait effacé ou supersédé.
+    Aucun code Mem0 copié ; frontière MemoryBackend conservée pour un adaptateur
+    optionnel futur. Inspiration : https://github.com/mem0ai/mem0 (consulté ce tour).

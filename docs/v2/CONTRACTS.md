@@ -82,3 +82,27 @@ For full personal-data erasure rather than memory-scope erasure, `/users/me/data
 ## Réorganisation par stream
 
 Routes, payloads et schéma SQL inchangés. Les imports Python suivent désormais `backend.streams.<lettre>_<nom>.service`. La carte complète et les responsabilités transverses sont dans ARCHITECTURE.md. Les types E restent dans E_orchestrator/models.py.
+
+## Mémoire continue
+
+- `POST /conversations` conserve les champs existants `text`, `privacy_scope`,
+  `mode`, et accepte `conversation_id?`, `idempotency_key?`, `learn=true`,
+  `auto_share=true`, `horizon=durable|temporary`. Sans confidentialité explicite,
+  seuls les goûts de l'allowlist sont SHARED ; le reste reste PRIVATE. Confidentialité
+  explicite et restrictions antérieures priment sur l'automatisme.
+- Réponse : `{conversation_id,interaction_id,facts,mode,replayed}`. Les répétitions
+  consolident les faits ; les messages restent distincts sauf renvoi idempotent.
+  Réutiliser une clé avec un autre payload est une erreur 422.
+- `GET /conversations?limit=100&offset=0` liste les échanges du membre (1–100 par page), avec total ;
+  `GET /conversations/{sid}` rend les messages de cet échange au seul propriétaire.
+- `/recommendations/query` conserve le texte dans le journal de l'auteur et ajoute
+  `conversation_id` à sa réponse. Les faits privés n'influencent pas le couple.
+- `v2_memory_interactions` : reçu par interaction, user/conversation/message avec
+  FK cascade, request_key unique par user, fingerprint, fact_ids JSON et mode.
+  Registre additif `continuous_memory=1` ; base `v2_schema=1` inchangée.
+- Faits durables : `valid_to=NULL`. Envies : `valid_to=maintenant+30 jours` ;
+  exclusion automatique du profil/recherche après expiration. Clés `learned:`
+  séparées par horizon. Événement `observed` relie le fait à son interaction.
+- Le journal n'est pas un chatbot génératif : il montre les messages réellement
+  conservés et les faits extraits. OpenAI reste opt-in via l'adaptateur existant.
+  Repli local limité aux assertions/préférences explicites françaises/anglaises.

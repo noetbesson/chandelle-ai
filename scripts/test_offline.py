@@ -8,6 +8,7 @@ def main():
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
     os.chdir(Path(__file__).resolve().parents[1])
     os.environ['OPENAI_ENABLED']='0'
+    os.environ['GRADIUM_ENABLED']='0'
     os.environ.pop('RUN_LIVE_OPENAI_SMOKE',None)
     def denied(*args,**kwargs):
         raise AssertionError('Network connections are forbidden during the default full suite')

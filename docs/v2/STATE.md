@@ -1,6 +1,6 @@
 # État courant
 
-STATUS: STREAM_REORGANIZATION_COMPLETE
+STATUS: CONTINUOUS_MEMORY_COMPLETE
 V2_DONE = PASS
 MERGE_DONE = PASS
 LAST_UPDATED: 2026-09-26
@@ -54,3 +54,35 @@ sont identiques (141 cas avec paramétrisation). Aucun scénario supprimé.
 Code courant sans suffixe de livraison : frontend/app, api/routes.py,
 backend/requirements.txt et scripts/run.sh. Routes et noms SQL versionnés conservés.
 `bash scripts/check.sh` passe après ces changements.
+
+## Mémoire continue — livraison du 2026-09-26
+
+Choix utilisateur confirmés : deux espaces privés + un espace commun dans une
+même base, historique complet conservé, préférences simples partagées
+automatiquement, goûts durables séparés des envies ponctuelles.
+
+- Questionnaire existant conservé ; B consolide maintenant les assertions entre
+  échanges, renforce les répétitions et conserve les versions corrigées.
+- Journal H privé persistant/paginé, reprenable via conversation_id. Recommandations
+  enregistrées aussi ; signaux structurés existants conservés.
+- Partage automatique limité à une allowlist exacte. Confidentialité explicite,
+  restriction/révocation antérieure, isolation par propriétaire et consentements
+  de recommandation préservés. L'avis de A ne corrige jamais celui de B.
+- Envies séparées avec valid_to à 30 jours ; exclusion après expiration, journal
+  toujours conservé. Suppression de faits, correction et effacement personnel
+  restent distincts.
+- Migration additive continuous_memory=1, reçus idempotents et transaction atomique
+  couvrant messages/faits/événements/index/snapshots. Renvois concurrents testés.
+- Interface : Memories → Mon journal personnel, messages échappés, choix de
+  confidentialité, horizon et désactivation de l'apprentissage pour un message.
+
+Validation finale : `bash scripts/check.sh` → code 0, **161 tests Python en 13.72s**,
+suites Node (dont journal) et parcours API PASS. 141 cas préexistants conservés,
+20 cas ajoutés. Tests Python sans réseau. Diff des chemins protégés vide.
+
+Limites : extraction locale volontairement limitée aux préférences explicites
+françaises/anglaises, sans compréhension générale du langage. Le journal n'est
+pas une conversation générative avec réponses d'assistant. Adaptateur OpenAI
+existant opt-in ; aucun appel live effectué. Mem0 non installé, frontière optionnelle
+conservée. Identité locale existante, pas authentification de production.
+Aucun test visuel dans un navigateur réel, commit, push ou déploiement.

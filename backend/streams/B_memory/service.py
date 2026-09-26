@@ -19,6 +19,16 @@ Privacy = Literal["PRIVATE", "COUPLE_RECOMMENDATION", "SHARED"]
 
 SCOPES = {"PERSON", "COUPLE", "SESSION", "DATE"}
 VISIBILITIES = {"PRIVATE", "COUPLE_RECOMMENDATION", "SHARED"}
+# Exact allowlist: free text, health, diet, religion, budgets and relationships
+# cannot be classified as safe by a model and automatically disclosed.
+AUTO_SHARE_PREFERENCES = {
+    'jazz': 'jazz', 'cinéma': 'cinema', 'cinema': 'cinema', 'movies': 'cinema',
+    'musées': 'museums', 'museums': 'museums', 'culture': 'culture',
+    'concerts': 'concerts', 'nature': 'nature', 'balades': 'outdoors',
+    'walks': 'outdoors', 'outdoors': 'outdoors', 'poterie': 'creative',
+    'pottery': 'creative', 'peinture': 'creative', 'painting': 'creative',
+    'ateliers': 'workshops', 'workshops': 'workshops',
+}
 PUBLIC_CATEGORIES = {"food", "culture", "concerts", "cinema", "outdoors", "sport", "workshops", "nightlife", "home", "home dates", "travel"}
 
 
@@ -375,6 +385,23 @@ class MemoryServiceV2:
                         profile["constraints"][k] = value[k]
             if category in {"feedback", "history", "date"} and not internal:
                 profile["recent_patterns"].append({"category": category, "source": fact["source"], "recorded_at": fact["created_at"]})
+        # Durable conversational corrections override the corresponding interview
+        # selection, without editing its original answer or losing provenance.
+        for fact in sorted(facts, key=lambda f: (f['updated_at'], f['id'])):
+            if scope != 'PERSON' or not fact['key'].startswith('learned:durable:preference:') or fact['contradicted_by']:
+                continue
+            value = fact['value']
+            for tag in value.get('values', []) if isinstance(value, dict) else []:
+                if not isinstance(tag, str):
+                    continue
+                tag = tag.strip().casefold()
+                if fact['category'] == 'dislikes':
+                    interests.discard(tag)
+                    dislikes.add(tag)
+                elif fact['category'] == 'interests':
+                    dislikes.discard(tag)
+                    interests.add(tag)
+                    weights[tag] = 1.0
         profile["interest_weights"] = {k:v for k,v in weights.items() if k not in dislikes}
         profile["interests"] = sorted(interests - dislikes)
         profile["dislikes"] = sorted(dislikes)
@@ -432,10 +459,21 @@ class MemoryServiceV2:
         shared_facts.extend(f for f in self.repository.active(couple_id,"COUPLE",couple_id) if f["privacy_scope"] == "SHARED" and f["consent_state"] == "granted")
         # Public projection never echoes free text, even if it was marked SHARED.
         shared = self._build_profile(couple_id,"COUPLE",shared_facts,internal=True)
+        # Apply each person's corrections independently before combining shared
+        # tastes, so A's latest assertion cannot erase B's opposite preference.
+        shared_profiles = [self._build_profile(m['user_id'], 'PERSON',
+                           [f for f in shared_facts if f['owner_id'] == m['user_id']], internal=True)
+                           for m in members]
+        shared_dislikes = set().union(*(set(p['dislikes']) for p in shared_profiles))
+        shared_interests = set().union(*(set(p['interests']) for p in shared_profiles))
+        shared['dislikes'] = sorted(shared_dislikes)
+        shared['interests'] = sorted(shared_interests - shared_dislikes)
+        shared['interest_weights'] = {tag: max(p['interest_weights'].get(tag, 0) for p in shared_profiles)
+                                      for tag in shared['interests']}
         common = set(profiles[0]["interests"]) if profiles else set()
         for profile in profiles[1:]:
             common &= set(profile["interests"])
-        shared["interests"] = sorted((common & PUBLIC_CATEGORIES) | set(shared["interests"]))
+        shared["interests"] = sorted(((common & PUBLIC_CATEGORIES) | set(shared["interests"])) - shared_dislikes)
         shared["top_preferences"] = shared["interests"][:8]
         shared["shared_interests"] = shared["interests"]
         shared["novelty"] = round(sum(p["novelty"] for p in profiles)/max(1,len(profiles)), 3)
@@ -508,3 +546,64 @@ class MemoryServiceV2:
 
     def ingest_date_history(self, couple_id, user_id, date_id, value, privacy_scope="PRIVATE"):
         return self.ingest(couple_id,"DATE",date_id,user_id,"history","date:"+date_id,value,privacy_scope,source="date_history")
+
+    def learn(self, couple_id, owner_id, candidates, privacy_scope='PRIVATE',
+              interaction_id=None, horizon='durable', auto_share=False):
+        """Consolidate explicit assertions; unrelated facts are never overwritten."""
+        from datetime import timedelta
+        import unicodedata
+        if horizon not in {'durable', 'temporary'}:
+            raise ValueError('Invalid memory horizon')
+        self._scope(couple_id, 'PERSON', owner_id, owner_id)
+        learned = []
+        prepared = {}
+        for candidate in candidates[:30]:
+            normalized = ' '.join(unicodedata.normalize('NFKC', candidate.value.strip()).casefold().split())
+            normalized = AUTO_SHARE_PREFERENCES.get(normalized, normalized)
+            family = 'preference' if candidate.category in {'interests', 'dislikes'} else candidate.category
+            candidate_horizon = 'temporary' if horizon == 'temporary' or getattr(candidate, 'horizon', 'durable') == 'temporary' else 'durable'
+            prepared[(normalized, family, candidate_horizon)] = candidate
+        with self.db.atomic():
+            for (_, _, candidate_horizon), candidate in prepared.items():
+                value = candidate.value.strip()[:500]
+                if not value or candidate.confidence < .7:
+                    continue
+                canonical = ' '.join(unicodedata.normalize('NFKC', value).casefold().split())
+                safe_value = AUTO_SHARE_PREFERENCES.get(canonical)
+                effective_privacy = 'SHARED' if auto_share and safe_value and candidate.category in {'interests', 'dislikes'} else privacy_scope
+                if safe_value:
+                    canonical = safe_value
+                    value = safe_value
+                family = 'preference' if candidate.category in {'interests', 'dislikes'} else candidate.category
+                key = 'learned:' + candidate_horizon + ':' + family + ':' + hashlib.sha256(canonical.encode()).hexdigest()
+                active = self.repository.active(couple_id, 'PERSON', owner_id)
+                previous = next((f for f in reversed(active) if f['key'] == key and not f['contradicted_by']), None)
+                if auto_share:
+                    with self.db.connect() as c:
+                        last_consent = c.execute(
+                            "SELECT privacy_scope FROM v2_facts WHERE couple_id=? AND owner_id=? AND scope='PERSON' AND key LIKE ? ORDER BY updated_at DESC,created_at DESC LIMIT 1",
+                            (couple_id, owner_id, 'learned:%:' + family + ':' + hashlib.sha256(canonical.encode()).hexdigest())).fetchone()
+                    if last_consent and last_consent['privacy_scope'] != 'SHARED':
+                        effective_privacy = last_consent['privacy_scope']
+                    for existing in active:
+                        values = existing['value'].get('values', []) if isinstance(existing['value'], dict) else []
+                        normalized_values = [AUTO_SHARE_PREFERENCES.get(v.casefold(), v.casefold()) for v in values if isinstance(v, str)]
+                        if canonical in normalized_values and existing['privacy_scope'] != 'SHARED':
+                            effective_privacy = 'PRIVATE'
+                if auto_share and previous and previous['privacy_scope'] != 'SHARED':
+                    # A prior restriction/revocation always wins over automation.
+                    effective_privacy = previous['privacy_scope']
+                changed = previous and (previous['category'] != candidate.category or previous['privacy_scope'] != effective_privacy)
+                fact = self.ingest(couple_id, 'PERSON', owner_id, owner_id,
+                    candidate.category, key, previous['value'] if previous and not changed else {'values': [value]},
+                    effective_privacy, 'conversation', confidence=candidate.confidence,
+                    supersedes=previous['id'] if changed else None,
+                    idempotency_key=interaction_id)
+                with self.db.connect() as c:
+                    if candidate_horizon == 'temporary':
+                        expiry = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                        c.execute('UPDATE v2_facts SET valid_to=? WHERE id=?', (expiry, fact['id']))
+                    self._event(c, fact, 'observed', {'interaction_id': interaction_id, 'horizon': candidate_horizon})
+                learned.append(self.repository.get(fact['id']))
+            self.derive_couple(couple_id)
+        return learned

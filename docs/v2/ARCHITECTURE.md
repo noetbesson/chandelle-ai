@@ -119,3 +119,31 @@ Les noms de livraison disparaissent des fichiers actuels : `frontend/app/`,
 `reset_demo.sh`, `test_offline.py`. Les identifiants `/api/v2`, `/v2-static`,
 les tables SQL `v2_*` et le répertoire de mémoire de construction `docs/v2`
 sont conservés : ce sont des contrats/historiques, pas des copies du produit.
+
+## Boucle de mémoire continue
+
+```mermaid
+flowchart LR
+  Q[Questionnaire individuel] --> B[Mémoire B]
+  I[Échange ou demande de programme] --> H[H : extraire les assertions]
+  H --> J[Journal privé complet]
+  H --> B
+  B --> P[Deux profils personnels isolés]
+  B --> C[Projection commune selon consentement]
+  P --> R[Recherche et recommandations autorisées]
+  C --> R
+```
+
+H capture les interactions, B consolide les faits et leurs sources. Même goût :
+renforcement ; changement explicite : ancienne version conservée, nouvelle active.
+Les envies ont une échéance ; le journal n'expire pas avec elles. La projection
+commune référence les faits partagés et se recalcule après mutation/révocation.
+Elle ne contient pas les messages privés. Une préférence d'un membre ne remplace
+jamais l'aversion de l'autre membre dans son profil personnel.
+
+Les écritures d'un échange sont atomiques. Les reçus idempotents sont persistants,
+isolés par propriétaire et effacés avec ses messages. Aucun retraitement automatique
+des anciens messages ne recrée un fait supprimé. La recherche existante reste
+locale (lexicale, tokens hachés, récence/salience), pas un modèle sémantique avancé.
+Le journal est paginé ; les tokens de membre restent le mécanisme d'identité locale
+existant. La frontière optionnelle MemoryBackend ne connecte pas Mem0 en production.
