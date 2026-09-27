@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {draftFromForm,safeSource,MAX_VIDEO,TTL} from '../app/share-store.mjs';
+const form=values=>{const f=new FormData();for(const [key,value]of Object.entries(values))f.set(key,value);return f;};
+const link=draftFromForm(form({title:'Une idée',text:'À voir https://www.instagram.com/reel/demo/?igsh=abc'}),1000);
+assert.equal(link.video,null);assert.match(link.url,/instagram.com/);assert.equal(link.caption,'Une idée\nÀ voir');assert.equal(link.expiresAt,1000+TTL);assert.equal(link.owner,null);
+const file=draftFromForm(form({video:new File(['fake fixture'],'clip',{type:'video/mp4'})}));
+assert.equal(file.video.name,'clip.mp4');assert.equal(file.video.type,'video/mp4');assert.equal(file.caption,'');
+const noMime=draftFromForm(form({video:new File(['fixture'],'clip.mov')}));assert.equal(noMime.video.type,'video/quicktime');
+for(const url of ['http://instagram.com/reel/x','https://instagram.com.attacker.test/x','https://user:secret@tiktok.com/x','https://localhost/a','https://example.org/'])assert.throws(()=>safeSource(url));
+assert.equal(safeSource('https://vm.tiktok.com/demo'),'https://vm.tiktok.com/demo');
+assert.throws(()=>draftFromForm(form({video:new File(['x'],'bad.html',{type:'text/html'})})),/MP4/);
+assert.throws(()=>draftFromForm(form({video:new File([new Uint8Array(MAX_VIDEO+1)],'big.mp4',{type:'video/mp4'})})),/32 Mio/);
+assert.throws(()=>draftFromForm(form({})),/vide/);
+assert.throws(()=>draftFromForm(form({text:'x'.repeat(10001)})),/long/);
+const repeated=form({text:'one'});repeated.append('text','two');assert.throws(()=>draftFromForm(repeated),/répétés/);
+assert.throws(()=>draftFromForm(form({owner:'someone',text:'jazz'})),/inconnus/);
+console.log('Share parsing PASS: links, text, file MIME/name, size, unsupported URLs, repeated/identity fields, expiry metadata.');

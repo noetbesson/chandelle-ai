@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
+from backend.api.reels import install_reel_routes
 from backend.db import Database
 from backend.streams.B_memory.onboarding import OnboardingService, CoupleCreate, Answer
 from backend.streams.B_memory.service import Privacy
@@ -21,8 +22,10 @@ from backend.integrations.gradium import GradiumAdapter, SpeechUnavailable
 from backend.integrations.google_calendar import download_calendar, CalendarUnavailable
 from starlette.concurrency import run_in_threadpool
 from backend.streams.H_conversation.voice import DiscoveryTurn, SpeechText, discovery_turn
+from backend.integrations.ai_budget import AIBudget
+from backend.streams.C_discovery.web import WebDiscovery, WebQuery
 from backend.streams.B_memory.service import MemoryServiceV2
-from backend.streams.C_discovery.service import CatalogService
+from backend.streams.C_discovery.service import CatalogService, cached_real_activities
 from backend.streams.G_proactive.service import SuggestionService
 from backend.streams.H_conversation.service import Conversation, ConversationService
 
@@ -64,6 +67,7 @@ def install_routes(app,db_path):
     planning=PlanningService(db,memory,catalog)
     suggestions=SuggestionService(db,planning)
     conversations=ConversationService(db,memory)
+    web_discovery=WebDiscovery(db,memory)
     app.state.v2={'db':db,'memory':memory,'onboarding':onboarding,'catalog':catalog,'planning':planning,'suggestions':suggestions,'availability':availability,'inspirations':inspirations}
     router=APIRouter(prefix='/api/v2')
 
@@ -73,6 +77,8 @@ def install_routes(app,db_path):
     def ready(member=Depends(auth)):
         if not onboarding.status(member['couple_id'])['completed']:raise HTTPException(409,'Complete both interviews first')
         return member
+
+    reels=install_reel_routes(app,db,memory,ready)
 
     def own_couple(cid,member):
         if cid!=member['couple_id']:raise PermissionError('Different couple')
@@ -90,6 +96,7 @@ def install_routes(app,db_path):
 
     @router.get('/integrations')
     def integrations():return {'gradium':GradiumAdapter().status(),'openai':OpenAIAdapter().status(),'calendar':{'google_ical_import':True,'automatic_sync':False,'mode':'manual_or_import_or_demo','timezone':'Europe/Paris','ics_export':True},'catalog':{'mode':'internal_demo'},'schema_version':1,'extensions':{'peer_merge':1,'google_ical':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
+    def integrations():return {'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_demo','timezone':'Europe/Paris','ics_export':True},'catalog':{'mode':'internal_demo'},'schema_version':1,'extensions':{'peer_merge':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
 
     @router.post('/onboarding/couples')
     def create(body:CoupleCreate):return onboarding.create(body)
@@ -166,7 +173,16 @@ def install_routes(app,db_path):
     @router.delete('/memories/entity/{scope}/{eid}')
     def erase_entity(scope:str,eid:str,member=Depends(ready)):
         entity(scope,eid,member)
+        if scope=='PERSON' and eid==member['id']:
+            reels.cancel(member)
+            with db.connect() as c:c.execute('DELETE FROM v2_web_cache WHERE owner_id=?',(member['id'],))
         return memory.delete_entity(member['couple_id'],scope,eid,member['id'])
+
+    @router.get('/ai/budget')
+    def ai_budget(member=Depends(ready)):return AIBudget(db).status()
+
+    @router.post('/discovery/web')
+    def web_search(body:WebQuery,member=Depends(ready)):return web_discovery.search(member,body)
 
     @router.get('/activities')
     def activities(query:str='',category:str|None=None,limit:int=30,offset:int=0,member=Depends(ready)):
@@ -180,6 +196,11 @@ def install_routes(app,db_path):
             if score:item.update({k:score[k] for k in ('person_a_score','person_b_score','couple_score','evidence','components')})
             item['state']=states.get(item['id'],'neutral');item['eligible']=score is not None
         return result
+
+    @router.get('/activities/real')
+    def real_activities(member=Depends(ready)):
+        items = cached_real_activities()
+        return {'items': items, 'total': len(items)}
 
     @router.get('/activities/{aid}')
     def activity(aid:str,member=Depends(ready)):return catalog.get(aid)
@@ -351,7 +372,7 @@ def install_routes(app,db_path):
 
     @router.post('/conversations')
     def conversation(body:Conversation,member=Depends(ready)):
-        adapter=OpenAIAdapter(enabled=body.mode=='openai' and OpenAIAdapter().enabled)
+        adapter=OpenAIAdapter(enabled=body.mode=='openai' and OpenAIAdapter().enabled,db=db)
         return conversations.ingest(member,body,adapter)
 
     def dev():
@@ -360,12 +381,14 @@ def install_routes(app,db_path):
     @router.delete('/users/me/data')
     def erase_person(body:Reset,member=Depends(auth)):
         if body.confirmation!='DELETE MY DATA':raise ValueError('Explicit personal erasure confirmation required')
+        reels.cancel(member)
         uid,cid=member['id'],member['couple_id']
         with db.connect() as c:
             scopes=[tuple(r) for r in c.execute('SELECT DISTINCT scope,entity_id FROM v2_facts WHERE couple_id=? AND owner_id=?',(cid,uid))]
             photos=[r[0] for r in c.execute('SELECT filename FROM v2_uploads WHERE user_id=?',(uid,))]
         for scope,eid in scopes:memory.delete_entity(cid,scope,eid,uid)
         with db.connect() as c:
+            c.execute('DELETE FROM v2_web_cache WHERE owner_id=?',(uid,))
             c.execute('DELETE FROM v2_messages WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_conversations WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_answers WHERE user_id=?',(uid,))
@@ -399,7 +422,7 @@ def install_routes(app,db_path):
         dev()
         if body.confirmation!='RESET LOCAL V2':raise ValueError('Explicit reset confirmation required')
         with db.connect() as c:
-            tables=[r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'v2_%'") if r[0] not in ('v2_schema','v2_extensions')]
+            tables=[r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'v2_%'") if r[0] not in ('v2_schema','v2_extensions','v2_ai_calls')]
             c.execute('PRAGMA foreign_keys=OFF')
             for table in tables:
                 if table.replace('_','').isalnum():c.execute('DELETE FROM "'+table+'"')

@@ -89,6 +89,15 @@ installation de dépendance n’a été exécuté pour le nettoyage.
 Les chemins figurant dans les preuves précédentes restent historiques. Commande
 courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépendance.
 
+## Transfert de discovery — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s backend/streams/C_discovery/tests -q` : **8 tests réussis**, aucun appel OpenAI live.
+- `bash scripts/check.sh` : **149 tests Python et 5 sous-tests réussis** ; la suite s'arrête ensuite avec `node: command not found` (code 127). Les contrôles JavaScript n'ont pas été exécutés dans cet environnement.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/verify_frontend_api.py` : parcours API Python réussi.
+- Validation locale du cache : **5 activités** conformes au modèle Pydantic Activity, `match_score` et `why` à `null`.
+- `bash -n scripts/check.sh scripts/run.sh scripts/reset_demo.sh` et `git diff --check` : réussis.
+- Aucun test live ni appel API pendant ce transfert. Le fichier `.env` n'est pas présent dans le nouveau dépôt ; le cache brut et normalisé provient du premier test effectué dans l'ancien dépôt.
+
 ## Regroupement des tests et retrait des noms de livraison
 
 - Comparaison AST des fonctions `test_*` avant/après regroupement : **100 fonctions strictement identiques**, signatures et assertions comprises ; 13 fichiers deviennent 8. Les imports nécessaires sont adaptés hors des fonctions.
@@ -168,3 +177,120 @@ courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépenda
   existant n’est pas réécrit. Contrôle de noms sensibles dans l’archive et de
   signatures fortes de secrets dans les fichiers : aucun résultat détecté
   (contrôle ciblé, pas garantie d’absence de tout secret historique).
+## Audit de raccordement de la mémoire vidéo (26 septembre 2026)
+
+| Vérification | Résultat observé | Code concerné |
+| --- | --- | --- |
+| Le code importé est-il réellement appelé ? | Oui : route enregistrée dans le FastAPI existant, formulaire Inspirations raccordé. Le dossier TypeScript préexistant est conservé mais inactif. | api/routes.py, api/reels.py, frontend/app/experiences.mjs |
+| Le signal rejoint-il B ? | Oui : TasteSignal dans une inspiration PERSON de v2_facts, même base et même service. | streams/B_memory/reels.py, service.py |
+| Attribution et confidentialité | Propriétaire issu du jeton serveur, paramètres d'identité refusés, inspiration privée, job inaccessible au partenaire. | api/reel_receive.py, api/reels.py |
+| Influence réelle sur le classement | Classement inchangé avant confirmation, différent après consentement COUPLE_RECOMMENDATION. | tests/test_reels.py, parcours B/D/C existant |
+| Ancienneté | Signal de 2020 conservé comme tel ; une confirmation temporaire ne le rend pas récent. | tests/test_reels.py |
+| Doublons | Même signal_id, un seul fait actif, aucun renforcement à la relance ; même comportement en mode asynchrone. | streams/B_memory/reels.py |
+| Effacement | Suppression des jobs du profil ; job annulé incapable de réécrire la mémoire ; fichiers temporaires nettoyés. | api/routes.py, tests/test_reels.py |
+| Redémarrage | Job interrompu marqué failed/INTERRUPTED et fichiers nettoyés. Pas de reprise automatique annoncée. | api/reels.py |
+| Formats et erreurs | MP4/MOV bornés en taille/durée, contrôle signature et FFprobe, autorisation requise, URL locale refusée. | api/reel_receive.py, integrations/reels/extract_audio.py |
+| Gradium / OpenAI / Pipelex | Contrats et erreurs testés avec transports simulés ; aucun appel fournisseur réel. | tests/test_reel_media.py, test_reel_normalize.py |
+
+Les MP4 utilisés pour la preuve sont générés localement par le vrai FFmpeg. Les
+extractions audio avec et sans piste sont exécutées réellement. Les recommandations
+utilisent le catalogue fictif existant. Le mode local analyse les mots de la
+légende ; il ne transcrit pas l'audio sans fournisseur configuré.
+
+Vérifications UI : `node --check` sur app.mjs/experiences.mjs, deux suites Node et
+`scripts/verify_frontend_api.py` réussis. Test du formulaire multipart, consentement,
+taille et échappement ; parcours existants d'entretien, choix d'activité,
+acceptation, feedback et édition mémoire préservés. Vérifications sans navigateur
+visuel ; aucun test de partage natif Android/iOS effectué dans ce dépôt.
+
+Adaptations de test : tzdata pour ZoneInfo sous Windows ; six identifiants courts
+pour les tests d'upload existants, car le nom automatique de l'échantillon de 5 Mio
+dépassait la limite Windows des variables d'environnement. Aucune assertion retirée.
+La paire de sockets interne d'asyncio est autorisée dans le lanceur Windows ; les
+connexions réseau des fournisseurs restent bloquées.
+
+Limites : identité locale par jeton, base SQLite non chiffrée, un seul processus
+serveur et tâches en mémoire, pas de publication autorisée. Cet audit confirme le
+raccordement fonctionnel local et les contrôles testés, pas une homologation de
+sécurité pour un service public.
+
+Résultats exécutés : suite complète `scripts/test_offline.py --tb=short
+--junitxml=.runtime/memory-tests.xml` : **195 passed en 119,97 s**. Après ajout du
+contrôle protégeant une inspiration corrigée manuellement contre un réimport,
+les **10 tests d'intégration vidéo ont été rejoués et passent en 11,07 s**
+(`.runtime/reel-final-tests.xml`). Les deux suites Node, la syntaxe JS et le parcours
+API des écrans passent également. `git diff --check` ne signale aucune erreur.
+Les rapports bruts restent dans `.runtime/`, ignoré par Git. Aucun test fournisseur
+live, commit, push ou déploiement.
+
+## Réception PWA depuis Instagram/TikTok
+
+Code ajouté et testé sur la branche locale maxime/memory-reels, sans push ni
+publication. La copie TypeScript supprimée précédemment n'est pas recréée.
+
+- `scripts/test_offline.py --tb=short --junitxml=.runtime/pwa-regression.xml` :
+  **198 passed en 97,09 s**, réseau fournisseurs interdit. Les 196 cas existants
+  restent présents, plus deux tests de livraison PWA et de refus d'upload anonyme.
+- `node frontend/tests/test_ui.mjs`, `test_experiences.mjs` et `test_share.mjs` :
+  PASS. Validation du partage texte/lien/fichier, type, nom sans extension,
+  taille, URL trompeuse, champs répétés, champ d'identité et métadonnées d'expiration.
+- `node --check` : app.mjs, experiences.mjs, share-page.mjs, share-store.mjs,
+  pwa.mjs et sw.js PASS.
+- `scripts/verify_frontend_api.py` : PASS, entretiens et parcours existants conservés.
+- `scripts/test_share_browser.cjs`, Playwright avec Microsoft Edge, largeur 375 px :
+  PASS. Deux exécutions réussies, dont la dernière inclut la reprise d'un job.
+  Vrai service worker, vraie navigation POST multipart interceptée, vrais blobs
+  IndexedDB, même API FastAPI et vraie extraction FFmpeg d'un MP4 synthétique.
+  Choix de profil obligatoire, lien seul sans fausse transcription, inspiration
+  privée, conflit d'attribution refusé, suivi/reprise du job, suppression,
+  expiration et quota vérifiés. CacheStorage contient uniquement CSS et icônes.
+  Aucun débordement horizontal à 375 px ; captures contrôlées visuellement.
+- Preuves locales ignorées par Git : `.runtime/pwa-regression.xml`,
+  `.runtime/pwa-regression.txt`, `.runtime/pwa-link-mobile.png`,
+  `.runtime/pwa-success-mobile.png`. Base de test séparée dans `.runtime/`,
+  réservée aux fixtures ; aucune nouvelle base mémoire produit.
+- `git diff --check` : PASS.
+
+Le partage natif Android depuis les applications installées n'est PAS validé par
+ces tests : ils simulent la navigation que le système transmet à la PWA, puis
+exécutent réellement toute la réception. À vérifier sur téléphone avec HTTPS et
+installation PWA. Le fichier fourni par Instagram/TikTok n'est pas garanti ; le
+cas lien seul est pris en charge. Sur iOS, l'alternative documentée est l'import
+manuel. Aucun appel Gradium/OpenAI/Pipelex réel ; pas de transcription live annoncée.
+
+Le dossier temporaire de tests de ce tour est `.runtime/pwa-temp` : l'ancien
+répertoire pytest était inaccessible aux permissions courantes. Aucun accès forcé
+à cet ancien dossier. Les données du projet et les fichiers utilisateur préexistants
+non liés à ce changement sont conservés.
+
+## Discover OpenAI et conversations, 26 septembre 2026
+
+- Première vérification : erreur de syntaxe dans une expression régulière et lecture Windows CP1252, corrigées avant validation. Aucun succès annoncé sur cet essai.
+- `python scripts/test_offline.py backend/tests/test_openai.py backend/tests/test_api.py backend/tests/test_architecture.py --basetemp=.runtime/ai-test-second --tb=short` : 52 PASS.
+- `python scripts/test_offline.py backend/tests/test_ai_discovery.py --basetemp=.runtime/ai-new-tests --tb=short` : 8 PASS. SQLite réelle, réponses OpenAI simulées, cache isolé et expiration, sources obligatoires, refus sans consentement/configuration/quota, erreurs expurgées, quota concurrent persistant, conversations françaises, exclusion effective et suppression.
+- `python scripts/test_offline.py --basetemp=.runtime/ai-full-tests --tb=short` : 206 PASS en 69,84 s ; réseau interdit. Inclut garder/remplacer, Reels/PWA et isolation mémoire.
+- Derniers ajustements (unités de budget explicites, refus durables, validation des URLs avec l'utilitaire existant, extraction française limitée aux déclarations directes) : `python scripts/test_offline.py backend/tests/test_ai_discovery.py backend/tests/test_openai.py backend/tests/test_architecture.py --basetemp=.runtime/ai-final-focused --tb=short` : 32 PASS.
+- `node frontend/tests/test_ai.mjs`, test_ui.mjs, test_experiences.mjs, test_share.mjs : PASS.
+- `node --check frontend/app/app.mjs` et ai.mjs : PASS. `python scripts/verify_frontend_api.py` : PASS. Analyse syntaxique PowerShell scripts/run_ai.ps1 : PASS (serveur live non activé).
+- `node scripts/test_ai_browser.cjs` avec PLAYWRIGHT_MODULE pointant vers le runtime installé : PASS dans Edge réel à 375x812, API sur 127.0.0.1:8315, base de fixture .runtime/ai-browser-test.sqlite3, fournisseurs désactivés. Discover indique clairement non configuré, modal quota, message français enregistré en mémoire, aucun débordement horizontal, aucun appel payant. Deux exécutions réussies ; captures viewport .runtime/ai-discover-mobile.png et ai-memory-mobile.png. Capture Discover inspectée visuellement.
+- `git diff --check` : PASS. Avertissements de conversion LF/CRLF seulement.
+
+Limites : aucun appel OpenAI réel, aucune activité internet réellement ingérée lors des tests. Les réponses sourcées sont simulées dans les tests API. L'UI a été vérifiée avec configuration désactivée ; intégration fournisseur et qualité de recherche nécessitent une clé configurée et un essai réel. Les tests prouvent des changements de classement locaux, pas la disponibilité des lieux.
+## Synchronisation Discovery — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 /private/tmp/chandelle-ai-inspect/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests backend/streams/C_discovery/tests` : **149 passed, 5 subtests passed**, code 0 ; tests hors ligne, aucun appel OpenAI. Exécution dans le dépôt local après fusion des branches.
+- Vérification locale du contrat Activity, des quatre fiches (`match_score` et `why` à null), de `.env.example`, et absence de `.env` ou `backend/api` dans le diff préparé : PASS.
+
+
+## Cache Discovery affiché — 26 septembre 2026
+
+- `PYTHONDONTWRITEBYTECODE=1 /private/tmp/chandelle-ai-inspect/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests backend/streams/C_discovery/tests` : **150 passed, 5 subtests passed**, code 0, exécution hors ligne dans la copie de travail.
+- Le test API ajouté vérifie quatre Activity réelles, leurs liens sources, leurs champs `match_score`/`why` nuls et leur absence des programmes calculés.
+- Vérification JavaScript par Node indisponible dans cet environnement (`node: command not found`) ; syntaxe/frontend à valider ultérieurement sur une machine avec Node.
+
+## Validation de la pull request #3
+
+Les résultats ci-dessus sont historiques et ne valident pas la présente
+fusion. Après résolution des conflits, relancer les tests Python des
+deux branches, les tests JavaScript et le parcours Discover combiné.
+Ne pas additionner les nombres de tests annoncés.

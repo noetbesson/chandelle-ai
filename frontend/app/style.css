@@ -24,3 +24,4 @@
 @keyframes voice-ring{from{transform:scale(.92);opacity:.5}to{transform:scale(1.2);opacity:0}}
 @keyframes voice-wait{50%{transform:scale(.91);opacity:.7}}
 @media(prefers-reduced-motion:reduce){.voice-orb,.voice-orb-core{transition:none}.voice-orb .voice-orb-core,.voice-orb::before{animation:none!important}}
+#share-error:empty{display:none}

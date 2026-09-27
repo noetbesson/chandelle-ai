@@ -89,3 +89,23 @@
 42. Utiliser icalendar et recurring-ical-events pour les récurrences et exceptions,
     plutôt qu’un parseur ICS partiel fait maison. Plages de sortie choisies et
     horizon 31 jours maximum ; événements transparents/annulés exclus des occupations.
+31. Raccorder l'import vidéo Python à l'API V2 et aux faits B existants. Les fichiers TypeScript déposés manuellement restent intacts et inactifs. Aucune base parallèle ni changement de D_connectors.
+32. Une vidéo produit un signal proposé, privé. Seule la confirmation existante autorise son utilisation. Conserver la date du signal séparément de la date d'analyse ; absence de date signifie inconnue. Les refus repérés dans le texte retirent les propositions correspondantes.
+33. Utiliser un registre de jobs opérationnel dans la même SQLite ; deux traitements maximum dans un processus. Après interruption, échec explicite et nettoyage, puis renvoi manuel. Les fournisseurs externes exigent un double accord : configuration serveur et consentement de l'import.
+34. Adapter l'environnement de test à Windows : tzdata, identifiants courts pour les cas contenant des fichiers volumineux et paire de sockets interne d'asyncio. Les connexions API restent interdites dans les tests hors ligne.
+
+35. Le partage mobile est reçu dans le service worker, puis conservé temporairement sur l'appareil. Une navigation native ne possède pas le header X-Member-Token : pas de tentative d'attribuer un profil implicitement ni de créer une route d'upload serveur anonyme.
+36. Réutiliser reelForm/submitExperience et /api/v2/reels/upload. /partager est un écran de réception, pas une nouvelle mémoire. Le choix explicite de profil verrouille le brouillon ; seuls les appels authentifiés écrivent dans B.
+37. Un lien seul peut devenir une piste issue du texte explicitement reçu ; demander le fichier pour le pipeline vidéo. Aucun scraping, téléchargement, récupération de comptes ou audio inventé.
+38. Cache public limité à la feuille de style et aux icônes. Pas de réponses API ni de médias privés en CacheStorage. Brouillons locaux bornés et supprimables, délai d'expiration distinct de la date réelle du signal.
+
+39. Combiner recherche web à la demande et règles locales : le modèle adapte la recherche, le code contrôle consentements, sources affichées et quota. Ne pas promettre une couverture exhaustive ni remplacer les fournisseurs par des événements inventés.
+40. Garder les réponses web dans un cache privé, pas dans le catalogue planifiable, tant que le prix, les dates et la localisation ne sont pas validés. La présence d'une citation prouve une référence, pas une disponibilité ni l'exactitude de chaque phrase.
+41. Avec les 50 EUR de crédit annoncés, démarrer à 1 USD/jour et 10 USD de réserves cumulées ; ne pas engager tout le crédit. Comptage conservateur par tentative, transaction SQLite immédiate, zéro retry SDK. Bloquer les modèles sans allocation validée. Les dépenses hors de cette base et les fournisseurs Reels restent hors compteur.
+42. Réutiliser l'extraction et les faits de conversation existants, avec vocabulaire français local et horizon temporaire. Ne pas envoyer les notes personnelles du partenaire à la recherche web. L'utilisateur choisit séparément l'analyse cloud et la visibilité des faits enregistrés.
+## Transfert de discovery — 26 septembre 2026
+
+31. Ajouter la collecte OpenAI Responses dans `C_discovery` à côté des services V1/V2 existants. La collecte reste une commande manuelle, désactivée sans `DISCOVERY_ENABLE_LIVE=true`, plafonnée à cinq activités et une requête Responses par exécution. `data/activities.json` est un cache local validé selon `backend/shared/activity.json` ; les scores personnalisés restent `null` dans ce cache. Le ranking du service V2 existant reste distinct. Conserver `service.py`, `legacy.py` et les tests historiques. Aligner la dépendance sur OpenAI 3 déjà présent et ajouter `python-dotenv`. Le transfert du cache ne branche pas encore ce cache sur le catalogue V2 servi par l'API.
+
+
+31. Discovery réel : exposer le cache Activity validé via `GET /api/v2/activities/real` et l’afficher séparément des 76 exemples fictifs. Aucun chargement web au démarrage ou à l’affichage. Les fiches sans prix, durée ou coordonnées restent consultables avec lien source, mais ne deviennent pas des candidats E : aucune donnée de planification n’est inventée.

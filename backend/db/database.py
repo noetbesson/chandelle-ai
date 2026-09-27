@@ -36,6 +36,17 @@ CREATE INDEX IF NOT EXISTS v2_messages_conversation ON v2_messages(conversation_
 INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('continuous_memory',1);
 CREATE TABLE IF NOT EXISTS v2_calendar_imports(user_id TEXT PRIMARY KEY REFERENCES v2_users(id) ON DELETE CASCADE,couple_id TEXT NOT NULL,imported_at TEXT NOT NULL,start_date TEXT NOT NULL,days INTEGER NOT NULL,daily_start TEXT NOT NULL,daily_end TEXT NOT NULL);
 INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('google_ical',1);
+CREATE TABLE IF NOT EXISTS v2_reel_jobs(
+ id TEXT PRIMARY KEY,couple_id TEXT NOT NULL REFERENCES v2_couples(id),
+ owner_id TEXT NOT NULL REFERENCES v2_users(id),fingerprint TEXT NOT NULL,
+ status TEXT NOT NULL,phase TEXT NOT NULL,fact_key TEXT,
+ backend TEXT NOT NULL,error TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS v2_reel_jobs_owner ON v2_reel_jobs(couple_id,owner_id,fingerprint);
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('reels_memory',1);
+CREATE TABLE IF NOT EXISTS v2_ai_calls(id TEXT PRIMARY KEY,created_at TEXT NOT NULL,kind TEXT NOT NULL,reserve_micro_usd INTEGER NOT NULL,outcome TEXT NOT NULL,usage TEXT);
+CREATE TABLE IF NOT EXISTS v2_web_cache(owner_id TEXT NOT NULL,cache_key TEXT NOT NULL,payload TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(owner_id,cache_key));
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('ai_discovery',1);
+
 '''
 
 class ManagedConnection(sqlite3.Connection):
