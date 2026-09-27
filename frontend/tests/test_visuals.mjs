@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+const callbacks=new Set(),listeners=new Map(),removed=[],calls=[];
+const media={matches:true,addEventListener:(type,fn)=>callbacks.add(fn),removeEventListener:(type,fn)=>callbacks.delete(fn)};
+const flame={style:{removeProperty:key=>removed.push(key)}};
+globalThis.document={querySelectorAll:selector=>selector.includes('header-logo')?[flame]:[],addEventListener:(type,fn)=>listeners.set(type,fn)};
+globalThis.matchMedia=()=>media;
+globalThis.Motion={animate:(el,frames,options)=>{const call={el,frames,options,stopped:false};calls.push(call);return {stop(){call.stopped=true},then(){}};}};
+const {enhanceVisuals,stopVisuals}=await import('../app/visuals.mjs');
+enhanceVisuals();assert.equal(calls.length,0,'Reduced motion must skip continuous and entrance animations');
+media.matches=false;for(const fn of callbacks)fn();assert.equal(calls.length,1);
+assert.equal(calls[0].options.repeat,Infinity);
+media.matches=true;for(const fn of callbacks)fn();
+assert.equal(calls[0].stopped,true);assert.ok(removed.includes('opacity'),'Changing motion preferences must restore fully visible content');
+enhanceVisuals();assert.equal(callbacks.size,1,'Navigation must not accumulate preference listeners');
+stopVisuals();assert.equal(callbacks.size,0);
+let brokenRemoved=false;listeners.get('error')({target:{hasAttribute:name=>name==='data-activity-image',remove:()=>brokenRemoved=true}});assert.equal(brokenRemoved,true);
+let unrelatedRemoved=false;listeners.get('error')({target:{hasAttribute:()=>false,remove:()=>unrelatedRemoved=true}});assert.equal(unrelatedRemoved,false);
+console.log('Visual lifecycle PASS: reduced motion, preference changes, interrupted visibility, navigation cleanup, broken-image fallback.');

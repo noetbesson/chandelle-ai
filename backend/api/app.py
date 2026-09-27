@@ -1,6 +1,7 @@
 """Single local HTTP application, authenticated web discovery and memory."""
 
 from pathlib import Path
+import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -118,10 +119,10 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
 
     async def domain_error(request, exc):
         status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, KeyError) else 422
-        return JSONResponse(status_code=status, content={'error': {'code': str(status), 'message': str(exc)}})
+        return JSONResponse(status_code=status, content={'error': {'code': getattr(exc,'code',str(status)), 'message': str(exc)}})
     for error in (ValueError, PermissionError, KeyError):
         app.add_exception_handler(error, domain_error)
     return app
 
 
-app = create_app()
+app = create_app(os.getenv('CHANDELLE_DB_PATH'))

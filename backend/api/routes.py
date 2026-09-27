@@ -23,6 +23,8 @@ from backend.integrations.google_calendar import download_calendar, CalendarUnav
 from starlette.concurrency import run_in_threadpool
 from backend.streams.H_conversation.voice import DiscoveryTurn, SpeechText, discovery_turn
 from backend.integrations.ai_budget import AIBudget
+from backend.streams.H_conversation.dialogue import DiscoveryDialogue, ChatTurn, DialogueConflict
+from backend.streams.C_discovery.recommendations import RealRecommendations
 from backend.streams.C_discovery.web import WebDiscovery, WebQuery
 from backend.streams.B_memory.service import MemoryServiceV2
 from backend.streams.C_discovery.service import CatalogService
@@ -68,6 +70,9 @@ def install_routes(app,db_path):
     suggestions=SuggestionService(db,planning)
     conversations=ConversationService(db,memory)
     web_discovery=WebDiscovery(db,memory)
+    real_recommendations=RealRecommendations(db,memory)
+    dialogue=DiscoveryDialogue(db,planning,real_recommendations,web_discovery)
+    app.state.v2={'db':db,'memory':memory,'onboarding':onboarding,'catalog':catalog,'planning':planning,'suggestions':suggestions,'availability':availability,'inspirations':inspirations,'dialogue':dialogue,'real_recommendations':real_recommendations}
     planning.web=web_discovery
     app.state.v2={'db':db,'memory':memory,'onboarding':onboarding,'catalog':catalog,'planning':planning,'suggestions':suggestions,'availability':availability,'inspirations':inspirations}
     router=APIRouter(prefix='/api/v2')
@@ -100,6 +105,15 @@ def install_routes(app,db_path):
     def health():return {'status':'ok','version':'2.0','schema_version':1,'extensions':{'peer_merge':1,'google_ical':1},'offline':True}
 
     @router.get('/integrations')
+    def integrations():
+        from backend.integrations.dialogue import DialogueAdapter
+        return {'gradium':GradiumAdapter().status(),
+                'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},
+                'dialogue':{**DialogueAdapter().status(),'requires_consent':True,'session_hours':2},
+                'calendar':{'google_ical_import':True,'automatic_sync':False,'mode':'manual_or_import_or_demo','timezone':'Europe/Paris','ics_export':True},
+                'catalog':{'mode':'internal_demo','dialogue_source':'real_activity_source'},
+                'schema_version':1,'extensions':{'peer_merge':1,'google_ical':1,'discovery_dialogue':1},
+                'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
     def integrations():return {'gradium':GradiumAdapter().status(),'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_connected','timezone':'Europe/Paris','ics_export':True,'google_ical_import':True,'automatic_sync':False,'providers':{p:calendars['auth'].configured(p) for p in ('google','outlook')},'apple_caldav':False,'scheduler_running':bool(calendars['scheduler'].scheduler and calendars['scheduler'].scheduler.running)},'catalog':{'mode':'imported_and_web',**__import__('backend.streams.C_discovery.local_catalog',fromlist=['ImportedCatalog']).ImportedCatalog(db).status()},'schema_version':1,'extensions':{'peer_merge':1,'calendar_proactive':1,'google_ical':1,'voice':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
 
     @router.post('/onboarding/couples')
@@ -219,11 +233,22 @@ def install_routes(app,db_path):
         return {**result,'conversation_id':interaction['conversation_id']}
 
 
-    @router.post('/discover/chat')
-    def discover_chat(body: DiscoveryTurn, member=Depends(ready)):
+    @router.post('/ask/chat')
+    @router.post('/discover/chat', include_in_schema=False)
+    def ask_chat(body: ChatTurn | DiscoveryTurn, member=Depends(ready)):
+        if isinstance(body,ChatTurn):
+            try:
+                return dialogue.turn(member,body)
+            except DialogueConflict as exc:
+                raise HTTPException(409,str(exc)) from None
         return discovery_turn(body, lambda text, budget: planning.query(member['couple_id'],
             Query(text=text, budget=budget, activity_count=2, max_plans=3, mode='auto'),
             deck_options={'owner_id':member['id'],'duration':360,'travel':30}))
+
+    @router.delete('/ask/chat/{session_id}')
+    @router.delete('/discover/chat/{session_id}', include_in_schema=False)
+    def close_ask_chat(session_id:str,member=Depends(auth)):
+        return dialogue.close(member,session_id)
 
     @router.post('/voice/transcribe')
     async def transcribe(request: Request, member=Depends(ready)):
@@ -405,6 +430,7 @@ def install_routes(app,db_path):
             c.execute('DELETE FROM v2_mood_cache WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_notification_reads WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_web_cache WHERE owner_id=?',(uid,))
+            c.execute('DELETE FROM v2_discovery_sessions WHERE owner_id=?',(uid,))
             c.execute('DELETE FROM v2_messages WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_conversations WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_answers WHERE user_id=?',(uid,))
@@ -421,17 +447,6 @@ def install_routes(app,db_path):
         for filename in photos:(upload_dir/filename).unlink(missing_ok=True)
         memory.derive_couple(cid)
         return {'erased':True,'status':onboarding.status(cid),'retained':'Local capability and membership for resume; shared date plans remain couple records'}
-
-    @router.post('/dev/seed')
-    def seed():
-        dev();result=onboarding.create(CoupleCreate(person_a='Alex',person_b='Sam'))
-        for person in result['members']:
-            member=onboarding.authenticate(person['token'])
-            values=[{'name':person['name']},{'values':['culture','food','outdoors']},{'values':[]},{'min':20,'max':120,'unit':'couple','flexible':False},{'novelty':.7},{'days':[],'travel_minutes':60,'dietary':[],'accessibility':[]},{'skip':True}]
-            for step,value in enumerate(values,1):onboarding.answer(result['couple_id'],person['id'],member,Answer(step=step,value=value,privacy_scope='SHARED' if step==2 else 'COUPLE_RECOMMENDATION'))
-            onboarding.complete(result['couple_id'],person['id'],member)
-        result['status']=onboarding.status(result['couple_id'])
-        return result
 
     @router.post('/dev/reset')
     @calendar_locked

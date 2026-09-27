@@ -172,3 +172,17 @@ A existante → E. Aucun changement du contrat TimeWindow ni du planner.
 Les métadonnées propriétaires sont dans v2_calendar_imports ; liens secrets et
 événements ne sont pas persistés. Import ponctuel, pas de synchronisation de fond.
 Documentation et configuration dans GOOGLE_CALENDAR.md.
+
+## Dialogue Ask connecté
+
+H `dialogue.py` possède les sessions privées et la décision de dialogue validée
+par `integrations/dialogue.py`. Il reçoit E, C réel et C web par injection.
+C `recommendations.py` classe les fiches de `ActivitySource` sans calendrier, puis
+adapte uniquement les événements complets en CandidateActivity pour E. E accepte
+un fournisseur de candidats injecté et une requête déjà structurée, sans changer
+les routes historiques. L’API assemble ces services ; SQLite reçoit l’extension
+additive discovery_dialogue=1. Voir ASK_DIALOGUE.md.
+
+Le point d’entrée UI est Ask. Discover reste une liste filtrable d’activités.
+Le backend canonique utilise /ask/chat ; /discover/chat reste un alias pour
+les anciens clients. Les services C/H/E et le stockage sont réutilisés.

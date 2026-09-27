@@ -18,6 +18,25 @@ from backend.streams.E_orchestrator.planner import generate, replace, _distance_
 from backend.streams.A_calendar.service import AvailabilityService
 from backend.streams.E_orchestrator.planner import NoFeasiblePlan
 
+class PlanningIssue(ValueError):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+def calendar_issue(availability, cid, requested):
+    rows = availability._rows(cid)
+    if len(rows) == 1:
+        return PlanningIssue('calendar_incomplete', 'Les disponibilités d’une personne manquent. Ajoutez-les dans « Nos disponibilités ». Je peux déjà proposer des idées sans fixer de date.')
+    if rows and any(not slots for slots in rows.values()):
+        return PlanningIssue('calendar_empty', 'Au moins un agenda ne contient aucun créneau libre enregistré. Ajoutez une disponibilité ou poursuivons avec des idées sans date.')
+    if rows and not availability.common(cid):
+        return PlanningIssue('calendar_no_overlap', 'Vos disponibilités enregistrées ne se recoupent pas. Choisissons un autre créneau ; les idées restent consultables.')
+    if requested:
+        return PlanningIssue('requested_time_unavailable', 'Le créneau demandé ne correspond pas à vos disponibilités communes enregistrées. Quel autre moment vous conviendrait ?')
+    return PlanningIssue('calendar_expired', 'Les créneaux communs enregistrés sont passés. Actualisez vos disponibilités pour dater le programme.')
+
+
 class Query(BaseModel):
     text: str = Field(default='A date for us',min_length=1,max_length=2000)
     budget: float | None = Field(default=None,ge=0,le=10000)
@@ -49,6 +68,63 @@ class PlanningService:
         couple=context['couple']
         return CoupleProfile(user_a=PersonPreferences(interests=a.get('interests',[]),dislikes=a.get('dislikes',[])),user_b=PersonPreferences(interests=b.get('interests',[]),dislikes=b.get('dislikes',[])),shared_interests=couple.get('interests',couple.get('shared_interests',[])),dislikes=list(set(a.get('dislikes',[])+b.get('dislikes',[]))),typical_budget=budget,desired_novelty=couple.get('novelty',.5))
 
+    def query(self,cid,request,*,candidate_provider=None,parsed_request=None):
+        rid=uuid4().hex
+        trace=[]
+        try:
+            adapter=OpenAIAdapter(enabled=request.mode=='openai' and OpenAIAdapter().enabled,db=self.db)
+            parsed=parsed_request if parsed_request is not None else adapter.parse(request.text)
+            trace.append({'stage':'parse','detail':'Validated request and explicit constraints','mode':adapter.last_mode,'fallback':adapter.last_fallback})
+            context=self.memory.planning_context(cid)
+            trace.append({'stage':'memories','detail':'Loaded separately consent-filtered Person A, Person B and Couple context'})
+            availability=AvailabilityService(self.db)
+            try:
+                windows=availability.windows(cid,request.time_window)
+            except ValueError:
+                raise calendar_issue(availability,cid,request.time_window) from None
+            budget=request.budget if request.budget is not None else parsed.budget
+            # Persisted budgets also cap the complete plan, not only single candidates.
+            limits=[budget] if budget is not None else []
+            for profile in (context['person_a'],context['person_b'],context['couple']):
+                value=profile.get('budget')
+                if isinstance(value,(int,float)):
+                    limits.append(value)
+                elif isinstance(value,dict) and not value.get('flexible') and value.get('max') is not None:
+                    limits.append(value['max']*(2 if value.get('unit')=='person' else 1))
+            budget=min(limits) if limits else 150
+            required=set(request.required_activity_ids)
+            if request.required_activity_id:required.add(request.required_activity_id)
+            if len(required)>request.activity_count:raise PlanningIssue('too_many_selected', 'Le nombre de choix dépasse le nombre d’activités demandé. Gardons moins d’activités ou augmentons ce nombre, jusqu’à trois.')
+            profile=self._profile(context,budget)
+            for window in windows:
+                if window.start.utcoffset()!=window.end.utcoffset():
+                    raise PlanningIssue('time_change', 'Choisissez un créneau sans changement d’heure pour composer ce programme.')
+                scored=(candidate_provider(window,budget) if candidate_provider is not None else self.catalog.discover(cid,window,budget,request.categories or parsed.categories,request.radius_km,limit=100,query=request.text))
+                if parsed.excluded:
+                    from backend.streams.C_discovery.service import _matches, _normal
+                    scored=[x for x in scored if not any(_matches(_normal(x['activity']['category']+' '+' '.join(x['activity']['tags'])),t) for t in parsed.excluded)]
+                candidates=[CandidateActivity.model_validate(x['candidate']) for x in scored]
+                try:
+                    plans,rejected=generate(PlanRequest(time_window=window,couple_profile=profile,candidate_activities=candidates,max_plans=3),max_activities=request.activity_count,must_include=required or None)
+                    break
+                except NoFeasiblePlan:
+                    continue
+            else:raise PlanningIssue('no_feasible_activities', 'Le créneau existe, mais aucune combinaison d’activités ne respecte les horaires, trajets, choix et budget. Essayons une autre activité ou un autre créneau.')
+            trace.append({'stage':'candidates','detail':f'{len(candidates)} catalog activities pass hard constraints','calendar_mode':'manual' if AvailabilityService(self.db)._rows(cid) else 'demo_or_requested','timezone':'Europe/Paris'})
+            mode=adapter.last_mode
+            result=[]
+            for plan in plans[:request.max_plans]:
+                selected=[next(x for x in scored if x['activity']['id']==a.id) for a in plan.activities]
+                explanation=adapter.explain([{'id':x['activity']['id'],'title':x['activity']['title'],'person_a_score':x['person_a_score'],'person_b_score':x['person_b_score']} for x in selected]) if request.mode=='openai' and os.getenv('OPENAI_PLAN_EXPLANATIONS')=='1' else None
+                if adapter.last_mode=='openai':mode='openai'
+                item=self._decorate(plan,selected,cid,mode,window,budget)
+                if explanation is not None:item['reason']=explanation.explanation
+                item['_candidates']=[x.model_dump(mode='json') for x in candidates]
+                item['_profile']=profile.model_dump(mode='json')
+                self.save(item)
+                result.append(self.public(item))
+            trace.append({'stage':'plan','detail':f'{len(result)} coherent plans composed by E'})
+            output={'run_id':rid,'plans':result,'trace':trace,'mode':mode,'status':'completed'}
     def query(self,cid,request,*,deck_options=None):
         from datetime import timedelta,timezone
         from zoneinfo import ZoneInfo
@@ -216,11 +292,13 @@ class PlanningService:
     def _decorate(self,plan,selected,cid,mode,window,budget):
         item=plan.model_dump(mode='json')
         item['id']=item['date_plan_id']=uuid4().hex
+        item.update(couple_id=cid,status='draft',generated_at=now(),mode=mode,model=OpenAIAdapter().model if mode=='openai' else None,source='internal_demo_unverified' if all(x['activity'].get('demo',True) for x in selected) else 'real_source_availability_unconfirmed',kept_ids=[],total_couple_cost=plan.estimated_total_eur,per_person_cost=plan.estimated_total_eur/2,evidence=[e for x in selected for e in x['evidence']],time_window=window.model_dump(mode='json'),budget_cap=budget)
         item.update(couple_id=cid,status='draft',generated_at=now(),mode=mode,model=OpenAIAdapter().model if mode=='openai' else None,source='web_sourced_unverified_availability',kept_ids=[],total_couple_cost=plan.estimated_total_eur,per_person_cost=plan.estimated_total_eur/2,evidence=[e for x in selected for e in x['evidence']],time_window=window.model_dump(mode='json'),budget_cap=budget)
         for key in ('person_a_score','person_b_score','couple_score'):item[key]=round(sum(x[key] for x in selected)/len(selected),4)
         timeline=[]
         for i,a in enumerate(item['activities']):
             catalog=selected[i]['activity']
+            a.update(title=a['name'],category=a['type'],source=catalog['source'],demo=catalog.get('demo',True),description=catalog['description'],address=catalog['address'])
             a.update(title=a['name'],category=a['type'],source=catalog['source'],demo=False,description=catalog['description'],address=catalog['address'],source_url=catalog.get('source_url'),schedule_status=catalog.get('schedule_status'),checked_at=catalog.get('checked_at'))
             if i:
                 left,right=plan.activities[i-1],plan.activities[i]
@@ -229,6 +307,8 @@ class PlanningService:
                 timeline.append({'type':'travel','minutes':minutes,'from':left.name,'to':right.name})
             timeline.append({'type':'activity','id':a['id'],'title':a['title'],'start':a['start'],'end':a['end']})
         item['timeline']=timeline
+        if not all(x['activity'].get('demo',True) for x in selected):
+            item['reason']='Programme construit à partir des horaires et prix des sources. Disponibilité et tarifs à reconfirmer auprès des lieux.'
         item['_e_plan']=plan.model_dump(mode='json')
         return item
 
@@ -277,6 +357,7 @@ class PlanningService:
 
     def replace(self,cid,pid,activity_id,new_constraints=None):
         item=self.get(cid,pid)
+        if item.get('source')=='real_source_availability_unconfirmed':raise PlanningIssue('real_plan_refresh_required', 'Reprenez le dialogue pour chercher une autre activité réelle et vérifier ses horaires.')
         if item['status'] not in ('draft','proposed'):raise ValueError('Only draft or proposed plans can change')
         if activity_id in item['kept_ids']:raise ValueError('Unkeep this activity before replacing it')
         if '_deck' in item:

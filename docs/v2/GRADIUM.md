@@ -1,4 +1,8 @@
-# Discover vocal — configuration et utilisation
+# Ask vocal — configuration et utilisation
+
+> Parcours courant : [dialogue libre et recommandations réelles](ASK_DIALOGUE.md).
+> Le frontend utilise une session OpenAI optionnelle. Discover conserve le catalogue.
+
 
 Le dialogue vocal est intégré au même backend que la mémoire et les cartes.
 Chaque machine doit configurer ses propres accès Gradium côté serveur.
@@ -11,21 +15,26 @@ Depuis ce projet, après installation des dépendances Python habituelles :
 bash scripts/run_voice.sh
 ```
 
-Le script demande la clé API Gradium en saisie masquée, puis l'identifiant d'une
-voix française de votre compte Gradium. Récupérer ces informations dans le
-dashboard Gradium ; ne pas coller la clé dans le code ni dans une conversation.
-Le script les exporte uniquement pour le serveur lancé, sans les enregistrer.
-Arrêter un ancien serveur sur le même port avant de relancer.
+Le script lit le `.env` local : `GRADIUM_API_KEY`, `GRADIUM_VOICE_ID` et
+`GRADIUM_ENABLED=1`. Il demande en saisie masquée seulement les valeurs manquantes ;
+elles restent alors dans le processus, sans écriture automatique. OpenAI et le web
+se configurent de même avec leurs clés/options dans [LOCAL_ENV.md](LOCAL_ENV.md).
+Ne pas coller de clé dans une conversation. Arrêter un ancien serveur sur le même
+port avant de relancer. Diagnostic sans appel API :
+`bash scripts/run_voice.sh --check-env`.
 
 Ouvrir http://127.0.0.1:8000, terminer les deux entretiens si nécessaire, puis
-**Discover → Discuter avec Chandelle**. Le catalogue existant reste accessible.
+**Ask**, puis cliquer sur le chandelier déjà visible. Les activités restent consultables dans Discover.
+Le lanceur propose aussi OpenAI et la recherche web ; autoriser séparément leur
+utilisation dans « Options du dialogue » pour activer la compréhension libre et la recherche.
 
 1. Chandelle demande votre envie de sortie et lit la question.
 2. Toucher la chandelle pour parler et autoriser le micro (45 secondes maximum).
 3. Toucher de nouveau la chandelle pour terminer : transcription et envoi automatiques, sans texte affiché.
-4. Répondre au budget et aux précisions. Au troisième message, ou via
-   **Voir ma recommandation**, le moteur actuel calcule et enregistre un programme.
-5. Ouvrir la fiche pour voir le créneau, les activités et le coût à deux.
+4. Décrire ses envies, poser des questions ou changer les contraintes librement.
+   **Trouver des idées** recherche des activités sans exiger un agenda commun.
+5. Demander un programme quand le créneau et les données des activités le permettent.
+   Ouvrir sa fiche pour voir les activités et le coût à deux.
 
 Le micro nécessite localhost ou HTTPS. Si la lecture automatique est bloquée,
 toucher la chandelle pour lancer la lecture. Le texte reste utilisable sans Gradium ou si le
@@ -43,19 +52,18 @@ signalée ; aucune recommandation fictive n'est substituée au moteur.
 | GRADIUM_TTS_MODEL | Modèle de synthèse, facultatif ; défaut du fournisseur |
 
 Le lancement habituel `bash scripts/run.sh` fonctionne aussi si ces variables
-sont déjà exportées. Aucun chargement implicite de `.env`. Aucune dépendance
-nouvelle : les appels utilisent `httpx` déjà présent.
+sont exportées ou présentes dans `.env`. Les variables exportées sont prioritaires.
+Aucune dépendance nouvelle : python-dotenv et httpx sont déjà déclarés.
 
 ## Périmètre réellement implémenté
 
-Dialogue **guidé par tours**, pas conversation générative libre ni streaming
-audio continu avec interruption vocale. Gradium transcrit et synthétise ; H
-pose les questions, E compose le programme avec A/B/C. Pas de clé OpenAI requise.
-Les contraintes linguistiques restent celles de l'analyse locale existante :
-utiliser des montants chiffrés dans la transcription, par exemple « 80 euros pour
-deux ». Le créneau vient des disponibilités enregistrées ; une date dite librement
-n'est pas transformée automatiquement en disponibilité. Modifier les créneaux
-dans « Nos disponibilités » si nécessaire. Le catalogue reste une démonstration.
+Dialogue libre avec OpenAI activé et autorisé ; mode local limité sinon. Gradium
+transcrit et synthétise ; H interprète et conserve le contexte ; C cherche les
+sources réelles ; E compose le programme. Le transport audio reste par tours,
+sans écoute permanente ni interruption vocale automatique. Une date explicitement
+demandée peut définir un créneau ; aucun agenda n’est modifié par la conversation.
+Les idées ne nécessitent pas de disponibilités communes. Le catalogue réel reste
+limité et la recherche web fournit des pistes dont les informations sont à confirmer.
 
 L'audio est envoyé à Gradium pour transcription ; les réponses lui sont envoyées
 pour synthèse. Les données de mémoire brutes et la clé ne partent pas au navigateur
@@ -67,8 +75,8 @@ arrête le micro et la lecture, et invalide les résultats tardifs.
 ## Fichiers et endpoints
 
 - `backend/integrations/gradium.py` : REST ASR/TTS, délais, validation WAV, erreurs nettoyées.
-- `backend/streams/H_conversation/voice.py` : dialogue et appel du planner injecté.
-- `backend/api/routes.py` : `POST /api/v2/discover/chat`, `/voice/transcribe`,
+- `backend/streams/H_conversation/dialogue.py` : session et dialogue ; `voice.py` conserve le protocole guidé historique.
+- `backend/api/routes.py` : `POST /api/v2/ask/chat` (ancien chemin `/discover/chat` conservé), `/voice/transcribe`,
   `/voice/speak`. Capacité du membre + deux entretiens terminés requis.
 - `frontend/app/voice.mjs` : enregistrement, WAV PCM mono, transcription,
   lecteur et conversation, intégré à `app.mjs`.
@@ -95,7 +103,7 @@ repos dans les silences ; elle ne dépend pas de la durée de parole. Le micro
 n’est jamais envoyé aux haut-parleurs par cette visualisation. Le libellé
 indique aussi l’état. Un clic pendant la lecture l’interrompt pour parler.
 Pas de transcript visible ni de lecteur audio ; clavier et dernière réponse
-accessibles dans un volet fermé. Le bouton Quitter ferme micro/lecture et invalide
+accessibles dans un volet fermé. Le bouton Terminer ferme micro/lecture et invalide
 les requêtes tardives. Animations désactivées si réduction des mouvements demandée.
 L’arrêt au silence n’est pas automatique : toucher la chandelle termine la prise.
 

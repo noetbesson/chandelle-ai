@@ -7,7 +7,6 @@ const selected=new Map();
 export function configureExperiences(context){ctx=context;}
 export function resetSelection(){selected.clear();}
 export const selectionIds=()=>[...selected.keys()];
-export const extras=()=>`<div class="experience-shortcuts row"><button data-route="inspirations">✧ Inspirations</button><button data-route="availability">◷ Nos disponibilités</button></div>`;
 export function selectButton(a){return `<button data-action="compare-toggle" data-id="${escape(a.id)}" data-title="${escape(a.title)}" aria-pressed="${selected.has(a.id)}">${selected.has(a.id)?'✓ Sélectionné':'Comparer'}</button>`;}
 export const compareBar=()=>`<div class="selection-bar" id="comparison"><span>Jusqu’à 5 idées à comparer · 3 activités par programme</span><button data-action="compare-open">Voir mes choix (${selected.size})</button></div>`;
 const privacy=(value='PRIVATE')=>`<label>Utilisation des goûts confirmés<select name="privacy_scope"><option value="PRIVATE" ${value==='PRIVATE'?'selected':''}>Privé · uniquement moi</option><option value="COUPLE_RECOMMENDATION" ${value==='COUPLE_RECOMMENDATION'?'selected':''}>Recommandations · sans montrer mon contenu</option><option value="SHARED" ${value==='SHARED'?'selected':''}>Partagé · visible à deux</option></select></label>`;
@@ -89,7 +88,7 @@ export async function clickExperience(button){
     ctx.modal(`<h2>Vos idées, côte à côte</h2><div class="comparison-table"><table><caption>Prix pour deux · exemples fictifs</caption><thead><tr><th>Activité</th><th>Budget</th><th>Durée</th></tr></thead><tbody>${result.items.map(a=>`<tr><td>${escape(a.title)}</td><td>${a.price_per_person===null?'Inconnu':escape(a.price_per_person*2)+' €'}</td><td>${escape(a.duration_minutes)} min</td></tr>`).join('')}</tbody></table></div><p class="spaced">Total ${result.budget_complete?'':'connu : '}${escape(result.known_total_eur)} € pour deux.</p><p class="muted">${escape(result.message)}</p>${selected.size<=3?'<button class="primary" data-action="compose-selection">Composer avec ces choix →</button>':'<p>Revenez à la liste et gardez au maximum trois activités pour composer un programme.</p>'}`);return true;
   }
   if(action==='compose-selection'){
-    const ids=selectionIds();document.querySelector('dialog')?.close();await ctx.navigate('ask');
+    const ids=selectionIds();document.querySelector('dialog')?.close();await ctx.navigate('planner');
     ctx.setRequired(ids);
     document.querySelector('#selected-activity').innerHTML=`<p class="privacy">${ids.length} choix imposés à la composition. Le serveur vérifiera leur compatibilité. <button type="button" data-action="remove-selected">Retirer les choix</button></p>`;
     document.querySelector('#query').value='Un programme autour de nos choix';document.querySelector('#count').value=String(ids.length);return true;

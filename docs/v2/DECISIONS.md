@@ -245,6 +245,58 @@ Conserver le front sans framework ; écrire le deck en .mts strict et fournir le
     disque à chaque chargement : no-store et pas de 304 sur ces routes. Le worker
     ne conserve que les icônes, purge son ancien cache public et s’active aussitôt.
     Ne pas effacer les données utilisateur pour résoudre un problème de cache UI.
+
+46. Discover actuel utilise une session privée plutôt que la concaténation de
+    messages et un seuil de trois tours. Une décision structurée complète remplace
+    les contraintes précédentes ; le backend contrôle chaque action et les IDs.
+47. Séparer exploration réelle et programme daté : les idées ne nécessitent pas
+    d’agenda. Aucune substitution par le catalogue fictif dans ce dialogue.
+48. Réutiliser C web et ses consentements/quotas. Les notes de B restent locales ;
+    le LLM reçoit seulement l’échange courant et les résultats publics bornés.
+49. Source réelle injectable conforme au contrat Activity existant. Ne convertir
+    en candidat E que les événements courts, datés et complets. Horaires textuels
+    et périodes d’exposition ne constituent pas une séance.
+50. Sessions à révision, expiration et reçu du dernier message : pas de double
+    appel sur renvoi, pas de résultat croisé entre profils, suppression personnelle.
+51. Correction des doubles gestionnaires frontend et de la définition inutilisée
+    d’integrations héritées de la fusion. Les tests isolent l’import ASGI via
+    CHANDELLE_DB_PATH pour ne pas migrer la base personnelle pendant check.sh.
+
+52. Ask porte le dialogue vocal, le chandelier et les recommandations interactives.
+    Discover est le catalogue filtrable. Déplacer les composants sans dupliquer
+    H/C/E ; /ask/chat devient canonique, /discover/chat reste compatible. Les
+    formulaires historiques sont secondaires dans Ask ; les sélections du catalogue
+    ouvrent automatiquement le formulaire de composition concerné.
+
+53. Lire .env uniquement dans le lanceur local, avant le démarrage du serveur,
+    pour ne pas charger les clés pendant les imports/tests. Réutiliser le parseur
+    python-dotenv sans interpolation ; liste de variables autorisées, erreurs
+    masquées, exports prioritaires, secrets absents des arguments du processus.
+    Le worktree peut partager le fichier utilisateur par lien local ignoré, sans
+    copier ses clés. Diagnostic hors réseau distinct d’une validation fournisseur.
+
+54. Distinguer la version servie de la page déjà chargée : après redémarrage,
+    rappeler le rechargement de l’onglet dans le lanceur. Ne pas purger les données
+    utilisateur ni forcer une actualisation qui ferait perdre un formulaire en cours.
+
+55. Navigation principale Ask/Discover/Settings. L’état initial du chandelier est
+    du HTML sans session ni ressource audio ; seul un geste utilisateur démarre
+    l’échange. Regrouper les rubriques secondaires dans Settings sans changer
+    leurs APIs, consentements ni mécanismes d’identité. Terminer restaure l’état
+    initial ; le clavier peut commencer un échange en un seul message.
+
+56. Refonte uniquement de présentation : grouper les activités par type dans un
+    module pur, conserver requêtes/filtres/actions et distinguer le catalogue fictif.
+    Partager le SVG du chandelier sans changer le contrôleur vocal. Servir police
+    fournie et Motion officiel localement via le montage existant ; aucun framework
+    ou pipeline de build ajouté. Conserver les sources/licences des SVG demandés.
+
+57. Supprimer les profils utilisateur de démonstration du produit : ancien fichier
+    shared non référencé, route `/dev/seed`, bouton des réglages et option CLI
+    `--seed`. Les tests créent leurs propres entretiens via les API publiques.
+    Ne pas deviner qu’un profil est fictif à partir de son nom : conserver les
+    réponses réelles et les enrichissements explicitement consentis. Initialiser
+    une base choisie en CLI ne doit pas toucher la base produit par effet d’import.
 ## Intégration de la PR 6 après rejet du push
 
 Fusionner origin/main au lieu d'écraser l'historique partagé. Conserver le nom

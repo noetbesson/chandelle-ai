@@ -2,6 +2,10 @@
 # All local regression checks; no install, server or external account required.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Importing the ASGI app must not initialize or migrate the user's actual database.
+check_runtime=$(mktemp -d "${TMPDIR:-/tmp}/chandelle-check.XXXXXX")
+trap 'rm -rf -- "$check_runtime"' EXIT
+export CHANDELLE_DB_PATH="$check_runtime/import.sqlite3"
 export PYTHONDONTWRITEBYTECODE=1
 export OPENAI_ENABLED=0
 export GRADIUM_ENABLED=0
@@ -10,6 +14,12 @@ unset RUN_LIVE_OPENAI_SMOKE
 node --check frontend/app/app.mjs
 node --check frontend/app/experiences.mjs
 node --check frontend/app/voice.mjs
+node --check frontend/app/discover.mjs
+node --check frontend/app/chandelier.mjs
+node --check frontend/app/icons.mjs
+node --check frontend/app/visuals.mjs
+node frontend/tests/test_discover.mjs
+node frontend/tests/test_visuals.mjs
 node frontend/tests/test_ui.mjs
 node frontend/tests/test_experiences.mjs
 node frontend/tests/test_voice.mjs

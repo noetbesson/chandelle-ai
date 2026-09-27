@@ -5,6 +5,7 @@ from .service import parse_request
 
 
 class DiscoveryTurn(BaseModel):
+    model_config = {"extra":"forbid"}
     messages: list[Annotated[str, Field(min_length=1, max_length=1500)]] = Field(default_factory=list, max_length=8)
     recommend: bool = False
 
@@ -30,8 +31,8 @@ def discovery_turn(body, recommend):
         return {'reply': 'Résumez votre envie et vos contraintes en un message plus court, puis recommencez cet échange.', 'plans': []}
     try:
         result = recommend(text, budget)
-    except ValueError:
-        return {'reply': 'Je ne trouve pas de programme qui respecte toutes les contraintes. Vérifiez vos disponibilités dans « Nos disponibilités », ou recommencez avec une autre envie ou un autre budget.', 'plans': []}
+    except ValueError as exc:
+        return {'reply': str(exc) if hasattr(exc,'code') else 'Je ne trouve pas de programme compatible avec ces contraintes. Essayons une autre activité ou un autre budget.', 'plans': [], 'diagnostic': {'code':getattr(exc,'code','no_feasible_activities')}}
     plans = result.get('plans', [])
     if not plans:
         if any(step.get('stage') == 'calendar_window' and step.get('after') == 0 for step in result.get('trace', [])):

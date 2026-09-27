@@ -74,6 +74,8 @@ Créer les deux profils et terminer les entretiens, puis :
 3. **Discover / Ask** : comparer des activités et composer un programme pour deux.
 4. Accepter le programme, puis préparer la sortie et télécharger le calendrier `.ics`.
 
+Les profils se créent uniquement via les formulaires des deux personnes ; aucun profil de démonstration ne peut être chargé.
+La V1 reste accessible à `/v1/demo` et `/v1`.
 Pour un couple de démonstration prêt à utiliser :
 `CHANDELLE_DEV=1 bash scripts/run.sh`, puis Settings → Create test profiles.
 Cette commande crée uniquement les profils, jamais des activités. Les anciennes

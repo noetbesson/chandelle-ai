@@ -201,7 +201,7 @@ def test_cross_couple_authorization_and_error_envelopes(client):
         assert 'error' in response.json()
     assert client.post(PREFIX+'/recommendations/query',headers=headers(a),json={'activity_count':9}).status_code==422
     assert client.get(PREFIX+'/activities',headers=headers(a),params={'limit':0}).status_code==422
-    assert client.post(PREFIX+'/dev/seed').status_code==403
+    assert client.post(PREFIX+'/dev/seed').status_code==404
     assert client.post(PREFIX+'/dev/reset',json={'confirmation':'RESET LOCAL V2'}).status_code==403
 
 
@@ -343,7 +343,7 @@ from backend.db import Database
 def seeded(tmp_path,monkeypatch):
     monkeypatch.setenv('CHANDELLE_DEV','1')
     client=TestClient(create_app(tmp_path/'system.sqlite3'))
-    couple=client.post('/api/v2/dev/seed').json()
+    couple,_,_=ready(client)
     return client,{'X-Member-Token':couple['members'][0]['token']},couple
 
 
@@ -618,3 +618,48 @@ def test_shared_interview_correction_updates_common_memory(client):
     assert response.status_code==200,response.text
     profile=client.get(PREFIX+'/couples/'+couple['couple_id']+'/profile',headers=headers(a)).json()
     assert 'jazz' in profile['interests'] and 'jazz' not in profile['dislikes']
+
+
+def test_new_database_and_couple_have_no_example_profile(tmp_path, monkeypatch):
+    monkeypatch.setenv('CHANDELLE_DEV', '1')
+    path = tmp_path / 'clean.sqlite3'
+    with TestClient(create_app(path)) as fresh:
+        # Developer mode cannot bypass the two real interviews anymore.
+        assert fresh.post(PREFIX + '/dev/seed').status_code == 404
+        with fresh.app.state.v2['db'].connect() as con:
+            for table in ('v2_couples', 'v2_users', 'v2_answers', 'v2_facts'):
+                assert con.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0] == 0
+        couple = create(fresh)
+        context = fresh.app.state.v2['memory'].planning_context(couple['couple_id'])
+        for profile in context.values():
+            assert profile['interests'] == profile['dislikes'] == []
+            assert profile['budget'] == {}
+            assert not profile['constraints'].get('travel_minutes')
+        with fresh.app.state.v2['db'].connect() as con:
+            assert con.execute('SELECT COUNT(*) FROM v2_facts').fetchone()[0] == 0
+    # Reopening only seeds activities, never a user profile or its preferences.
+    with TestClient(create_app(path)) as reopened:
+        with reopened.app.state.v2['db'].connect() as con:
+            assert con.execute('SELECT COUNT(*) FROM v2_users').fetchone()[0] == 2
+            assert con.execute('SELECT COUNT(*) FROM v2_facts').fetchone()[0] == 0
+
+
+def test_initializer_cannot_seed_profiles_or_touch_another_database(tmp_path):
+    from pathlib import Path
+    import os
+    import sqlite3
+    script = Path(__file__).resolve().parents[2] / 'scripts' / 'init_demo.py'
+    target, untouched = tmp_path / 'catalog.sqlite3', tmp_path / 'ordinary.sqlite3'
+    env = {**os.environ, 'CHANDELLE_DB_PATH': str(untouched)}
+    result = subprocess.run([sys.executable, str(script), '--database', str(target), '--seed'],
+                            env=env, cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 2
+    assert not target.exists() and not untouched.exists()
+    subprocess.run([sys.executable, str(script), '--database', str(target)],
+                   env=env, cwd=tmp_path, check=True, capture_output=True, text=True)
+    assert not untouched.exists()
+    with sqlite3.connect(target) as con:
+        assert con.execute('SELECT COUNT(*) FROM v2_activities').fetchone()[0] > 0
+        for table in ('v2_users', 'v2_answers', 'v2_facts'):
+            assert con.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0] == 0
+    assert not (tmp_path / '.runtime' / 'demo-session.json').exists()

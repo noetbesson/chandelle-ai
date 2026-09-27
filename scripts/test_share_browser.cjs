@@ -1,5 +1,6 @@
 /* Real Chromium service worker + IndexedDB + FastAPI. No external provider calls. */
 const assert=require('node:assert/strict');
+const completeTestOnboarding=require('../frontend/tests/onboarding-fixture.cjs');
 const fs=require('node:fs');
 const path=require('node:path');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
@@ -10,7 +11,7 @@ if(!['127.0.0.1','localhost'].includes(new URL(base).hostname))throw Error('Loca
  try{
  const context=await browser.newContext({viewport:{width:375,height:812},serviceWorkers:'allow'});
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
- const seed=await context.request.post(base+'/api/v2/dev/seed');assert.equal(seed.status(),200);const couple=await seed.json();const [a,b]=couple.members;
+ const couple=await completeTestOnboarding(context.request,base);const [a,b]=couple.members;
  await page.goto(base+'/installer');await page.evaluate(()=>navigator.serviceWorker.ready);await page.reload();
  await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);
  await page.evaluate(s=>localStorage.setItem('chandelle-v2',JSON.stringify(s)),{...couple,active:a.id});

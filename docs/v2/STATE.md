@@ -1,5 +1,6 @@
 # État courant
 
+STATUS: DISCOVERY_DIALOGUE_IMPLEMENTED_LIVE_VALIDATION_PENDING
 ## 27 septembre 2026 : profondeur et coût de recherche
 
 À la demande de Maxime, le plafond passe de 2 à 4 appels outils web par demande,
@@ -423,6 +424,125 @@ du serveur et une ouverture/recharge normale suffisent pour appliquer la nouvell
 politique ; aucun lien versionné à saisir ni nettoyage manuel du cache requis.
 Validation : 263 tests Python réussis, 12 ignorés, 5 sous-tests réussis ; suites
 Node/API PASS. Test dédié au cycle du worker PASS. Pas de navigateur réel testé.
+
+## Dialogue Discover libre — 27 septembre 2026
+
+Branche de travail noe/api_gradium basée sur 1505aa3 (PR #5 et correction du
+cache PR #6 conservées). L’ancien c4a7b79 est conservé dans
+backup/api-gradium-before-dialogue ; chandelle-code.zip conservé. Le checkout
+initial ayant été utilisé simultanément par une autre intervention, le travail
+est isolé dans le worktree gradium-dialogue de cette tâche Codex. Le dossier
+initial est encore sur main au dernier contrôle. Aucun push ni commit de cette tranche.
+
+Nouveau dialogue OpenAI opt-in avec contexte, corrections, questions libres,
+suggestions réelles et recherche web existante. Agenda seulement nécessaire
+pour composer. Diagnostics précis. Source Activity interchangeable pour la future
+base ; événements complets raccordés au vrai planner E, sans catalogue fictif
+dans le nouveau parcours vocal. Chandelier et Gradium conservés. Sessions privées
+à expiration/idempotence, consentements séparés, effacement et isolation testés.
+
+Lancement : bash scripts/run_voice.sh puis Ask ; activer OpenAI dans le
+lanceur et autoriser l’échange dans l’interface. Voir ASK_DIALOGUE.md pour
+les contrats, l’intégration des données et les limites. La validation fournisseur
+réelle n’est pas annoncée : tests sans réseau, SDK simulé, navigateur en mode local.
+
+Validation finale dans le worktree Git : bash scripts/check.sh, code 0 ;
+289 passed, 12 skipped, 5 subtests passed in 30.95s. Suites Node, parcours API,
+syntaxe shell et git diff --check réussis. Validation navigateur réelle avec les
+fournisseurs désactivés. Aucun appel Gradium/OpenAI live ni installation de dépendance.
+
+## Correction du point d’entrée — Ask
+
+À la demande utilisateur, le dialogue et le chandelier sont déplacés de Discover
+vers Ask. Discover conserve les fiches et filtres ; les formulaires web et démo
+sont secondaires dans Ask. Frontend /ask/chat, anciennes routes compatibles,
+mêmes services, consentements et données. Travail toujours dans le worktree isolé
+noe/api_gradium ; le checkout initial n’est pas modifié.
+
+Validation après déplacement : bash scripts/check.sh code 0, 290 passed,
+12 skipped, 5 subtests passed in 29.63s ; suites Node/API réussies. Navigateur
+réel : Ask → chandelier → demande clavier → fiche réelle sourcée → Discover
+sans dialogue ; aucune erreur console. Fournisseurs désactivés et base de test.
+
+## Chargement local des clés
+
+Les lanceurs run.sh et run_voice.sh passent par scripts/run_local.py pour lire
+.env comme des données (sans évaluation/interpolation), filtrer les variables et
+respecter les valeurs exportées. --check-env est un diagnostic masqué sans réseau.
+Le .env utilisateur reste dans le checkout initial ; le worktree Ask y accède par
+un lien ignoré par Git. Permissions du fichier 0600 ; trois valeurs présentes,
+aucun doublon, aucune clé trouvée dans les fichiers versionnables des deux checkouts.
+Options d’activation manquantes ajoutées ; consentements Ask toujours requis.
+Aucune validation live des identifiants ni consommation fournisseur.
+
+Validation : 13 tests ciblés du lanceur réussis ; bash scripts/check.sh code 0,
+303 passed, 12 skipped, 5 subtests passed in 28.00s, suites Node/API PASS.
+Le vrai .env est lu par run_voice.sh --check-env : trois champs renseignés et
+options activées, sans afficher les valeurs ni appeler les fournisseurs.
+
+## Ancienne page affichée sur 8001 — diagnostic utilisateur
+
+Le processus sur 8001 utilisait bien le worktree gradium-dialogue. Les quatre
+ressources HTTP (HTML/app/voice/worker) correspondaient exactement aux fichiers
+Ask actuels, avec Cache-Control: no-store. Dans l’onglet Chrome utilisateur,
+l’ancien Ask était encore chargé en mémoire. Un rechargement normal a résolu
+le problème : Ask affiche le dialogue, Discover ses fiches et filtres. Profils
+conservés, aucun nettoyage de données ni redémarrage serveur requis. Le lanceur
+rappelle désormais de recharger les onglets déjà ouverts. Aucun appel fournisseur.
+
+## Navigation simplifiée — Ask / Discover / Settings
+
+Ask devient l’accueil après onboarding et au rechargement. Chandelier visible
+immédiatement ; premier clic pour ouvrir l’échange. Aucun appel fournisseur,
+création de session ou activation micro au simple affichage. Clavier direct,
+consentements conservés pendant le démarrage, Terminer remet le chandelier en attente.
+Settings regroupe Disponibilités, Inspirations, Memories, History et Réglages.
+Les rubriques conservent leurs endpoints et reviennent à Settings. Les anciens
+outils web/composition passent dans Réglages → Outils avancés, les suggestions
+Home dans History. Les sélections Discover ouvrent la composition dédiée.
+Navigation mobile/bureau limitée aux trois entrées ; raccourcis globaux retirés.
+
+Validation : bash scripts/check.sh code 0, 303 passed, 12 skipped,
+5 subtests passed in 29.04s, suites Node/API PASS. Navigateur de test : accueil,
+Settings, calendrier/retour, premier clic, fin/reprise et demande clavier avec
+fiche sourcée. Fournisseurs désactivés ; aucun nouvel appel fournisseur réel.
+
+## Refonte éditoriale Discover — 27 septembre 2026
+
+- Palette crème/rouge/brun et rôles typographiques centralisés ; Conjiote locale
+  pour le logo, les grands titres et catégories ; Helvetica Neue pour le corps/UI.
+- Chandelier SVG partagé avec Ask, flammes du header animées par Motion 13.4.4
+  gratuit servi localement. Mouvement réduit et nettoyage pris en charge.
+- Discover vertical, sections issues des types réels, lignes visuel/texte 36/64
+  sur mobile, métadonnées exactes, fallback d'image typographique ; catalogue
+  fictif secondaire avec actions originales préservées. Trois icônes SVG exactes.
+- Aucun changement backend/API/données/recommandations pour cette refonte.
+- Détails des fichiers, composants, sources/licences : [VISUAL_IDENTITY.md](VISUAL_IDENTITY.md).
+- Validation finale : `bash scripts/check.sh` code 0, 303 tests Python réussis,
+  12 ignorés, 5 sous-tests réussis en 50,39 s ; suites Node/API réussies.
+  Discover vérifié dans un navigateur à 375/390/430 px et sur ordinateur.
+
+## Profils issus des formulaires — 27 septembre 2026
+
+Suppression demandée des anciens profils d’exemple : fichier shared non référencé,
+route `/dev/seed`, bouton des réglages et option `init_demo.py --seed`. Le script
+initialise uniquement le schéma et les activités de la base choisie, sans effet
+d’import sur la base produit. Les scripts de test créent explicitement leurs
+entretiens via les API publiques ; aucun fixture utilisateur exposé dans l’app.
+
+Le profil initial se construit uniquement avec les réponses enregistrées par
+chaque personne. Les enrichissements volontaires et consentements existants
+restent conservés. Pas de suppression automatique des comptes d’après leur nom,
+ni d’effacement des réponses réelles. Aucune migration des données nécessaire.
+
+Validation : `bash scripts/check.sh` code 0, **307 passed, 12 skipped,
+5 subtests passed in 30.27s**, suites Node et parcours API PASS. Nouveaux cas :
+base vierge sans profil, impossibilité de seed même en mode développeur,
+isolation du chemin d’initialisation, japonais proposé sauf refus effectivement
+saisi, retrait du refus via réponse vide ou étape ignorée et conservation après
+réouverture. Aucun appel fournisseur ni nouvelle vérification micro/navigateur.
+Serveur utilisateur déjà lancé non redémarré ; relancer pour retirer aussi sa
+route en mémoire. Aucun commit, push ou changement de branche.
 ## Rejet du push et correction de cache intégrée, 27 septembre 2026
 
 Le push utilisateur de main a été refusé car origin/main avait reçu la PR 6

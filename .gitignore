@@ -1,6 +1,7 @@
 # Local data and environments
 .runtime/
 .venv/
+/.venv
 *.sqlite
 *.sqlite3
 *.sqlite-wal
