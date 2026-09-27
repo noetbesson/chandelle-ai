@@ -104,6 +104,79 @@ courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépenda
 - `bash scripts/check.sh` → code 0 : **141 passed in 10.38s**, deux suites Node et parcours API TestClient PASS ; syntaxe JS/shell et `git diff --check` réussis.
 - Commandes courantes : `bash scripts/run.sh` pour lancer, `bash scripts/check.sh` pour vérifier. Les anciens chemins run_v2_demo/test_v2_offline dans les preuves précédentes décrivent les commandes exécutées à ces dates.
 
+## Mémoire continue — 2026-09-26
+
+- Baseline `bash scripts/check.sh` : **141 passed in 9.80s**, code 0 ; suites Node,
+  parcours API frontend et syntaxe/diff PASS.
+- Après première intégration, même commande : **141 passed in 9.61s**, code 0,
+  suites Node et parcours API PASS.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_api.py` :
+  **40 passed in 7.53s**, code 0. Isolation, partage, corrections, répétitions,
+  expiration, rollback injecté, effacement et réouverture.
+- `bash scripts/check.sh` : **156 passed in 13.26s**, code 0, Node/API PASS.
+- `bash scripts/check.sh` : **158 passed in 13.24s**, code 0, Node/API PASS,
+  nouveau test frontend du journal PASS. Renvois simultanés et confidentialité
+  après expiration couverts. Aucun fournisseur live appelé.
+- `bash scripts/check.sh` : **160 passed in 13.52s**, code 0, Node/API PASS.
+  Pagination et préférences opposées entre partenaires couvertes.
+- Validation finale `bash scripts/check.sh` : **161 passed in 13.72s**, code 0 ;
+  deux suites Node, journal frontend, parcours API, syntaxe et diff PASS. Correction
+  du questionnaire partagé sans écrasement des préférences du partenaire couverte.
+- `git diff --check` : code 0 ; contrôle `git diff --name-only -- backend/shared backend/streams/A_calendar backend/streams/D_connectors backend/streams/F_booking docs/codex-E docs/night-shift` :
+  sortie vide, code 0. Aucun test navigateur réel, fournisseur live, installation,
+  commit ou publication. Archive préexistante chandelle-code.zip non modifiée.
+
+## Gradium / Discover vocal — 2026-09-26
+
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_voice.py` : **10 passed in 2.43s**, code 0.
+- `node frontend/tests/test_voice.mjs` : PASS, code 0 (dialogue, plans, échappement,
+  invalidation au changement de profil, libération du micro après permission
+  tardive, format WAV PCM mono).
+- `bash scripts/check.sh` : **171 passed in 17.59s**, code 0 ; suites JS, parcours
+  API, syntaxe shell et diff PASS. Gradium utilise un MockTransport httpx ; aucun
+  fournisseur réel appelé.
+- Les tests actuels sont neuf fichiers Python, avec dix nouveaux cas vocaux, et
+  trois suites Node. Le runner désactive Gradium en plus d'OpenAI.
+- Après ajout du modèle STT configurable et arrêt du micro lors d'une recherche
+  catalogue : même pytest ciblé → **10 passed in 2.59s** ; syntaxe app.mjs et suite
+  voice Node PASS ; `git diff --check` et `bash -n scripts/run_voice.sh scripts/check.sh` → code 0.
+
+## Cercle vocal Discover
+
+- `node frontend/tests/test_voice.mjs` : PASS ; pas de transcript/lecteur dans
+  l’interface principale, passage speaking → ready sur événements audio, réponse
+  vocale transcrite et envoyée automatiquement, isolation et libération du micro.
+- `bash scripts/check.sh` : code 0, **171 passed in 16.40s**, trois suites Node,
+  parcours API frontend et syntaxe/diff PASS.
+- Aucun appel Gradium réel ni essai visuel/micro dans un navigateur réel.
+
+## Import Google Calendar
+
+- Installation nécessaire : uv pip install dans .venv de icalendar==7.3.0 et
+  recurring-ical-events==3.8.2 ; réseau approuvé pour les dépendances seulement.
+- Première suite calendrier : 13 passed, 4 failed (réapplication du MockTransport
+  et méthode TestClient.delete sans json). Helpers de test corrigés.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_calendar.py` :
+  **17 passed in 2.15s**, puis **22 passed in 2.35s** après ajout des tests de
+  fuseau d’agenda, exception annulée, refus des ICS malformés, réouverture et plan.
+- `node frontend/tests/test_experiences.mjs` : PASS ; formulaire iCal masqué,
+  endpoint réel et effacement du champ après import. Aucun appel Google réel.
+- `bash scripts/check.sh` : code 0, **193 passed in 18.74s**, trois suites Node
+  et parcours API PASS, syntaxe/diff PASS.
+- Après annonce de google_ical dans health/integrations : tests calendrier
+  relancés, avec assertions sur les métadonnées publiques : **22 passed in 2.34s**,
+  code 0 ; `git diff --check` code 0.
+
+## Préparation publication noe/memory — 2026-09-27
+
+- `bash scripts/check.sh` : code 0, **193 passed in 18.47s**, trois suites Node,
+  parcours API, syntaxe et diff PASS. Aucun fournisseur live appelé.
+- Vérification de la destination : origin = noetbesson/chandelle ; branche distante
+  noe/memory au commit local de départ 377d56e, aucun écart observé avant publication.
+- Archive locale exclue du suivi futur et conservée sur disque ; son historique
+  existant n’est pas réécrit. Contrôle de noms sensibles dans l’archive et de
+  signatures fortes de secrets dans les fichiers : aucun résultat détecté
+  (contrôle ciblé, pas garantie d’absence de tout secret historique).
 ## Audit de raccordement de la mémoire vidéo (26 septembre 2026)
 
 | Vérification | Résultat observé | Code concerné |

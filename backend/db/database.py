@@ -1,6 +1,8 @@
 """Versioned local V2 SQL store; legacy tables are intentionally untouched."""
 from pathlib import Path
 import sqlite3
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS v2_schema(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
@@ -28,6 +30,12 @@ INSERT OR IGNORE INTO v2_schema(version) VALUES(1);
 CREATE TABLE IF NOT EXISTS v2_availability(user_id TEXT PRIMARY KEY REFERENCES v2_users(id),couple_id TEXT NOT NULL REFERENCES v2_couples(id),payload TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS v2_extensions(name TEXT PRIMARY KEY,version INTEGER NOT NULL,applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('peer_merge',1);
+CREATE TABLE IF NOT EXISTS v2_memory_interactions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES v2_users(id) ON DELETE CASCADE,conversation_id TEXT NOT NULL REFERENCES v2_conversations(id) ON DELETE CASCADE,message_id TEXT NOT NULL REFERENCES v2_messages(id) ON DELETE CASCADE,request_key TEXT,fingerprint TEXT NOT NULL,fact_ids TEXT NOT NULL,mode TEXT NOT NULL,UNIQUE(user_id,request_key));
+CREATE INDEX IF NOT EXISTS v2_conversations_owner ON v2_conversations(user_id,couple_id,created_at);
+CREATE INDEX IF NOT EXISTS v2_messages_conversation ON v2_messages(conversation_id,user_id,created_at);
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('continuous_memory',1);
+CREATE TABLE IF NOT EXISTS v2_calendar_imports(user_id TEXT PRIMARY KEY REFERENCES v2_users(id) ON DELETE CASCADE,couple_id TEXT NOT NULL,imported_at TEXT NOT NULL,start_date TEXT NOT NULL,days INTEGER NOT NULL,daily_start TEXT NOT NULL,daily_end TEXT NOT NULL);
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('google_ical',1);
 CREATE TABLE IF NOT EXISTS v2_reel_jobs(
  id TEXT PRIMARY KEY,couple_id TEXT NOT NULL REFERENCES v2_couples(id),
  owner_id TEXT NOT NULL REFERENCES v2_users(id),fingerprint TEXT NOT NULL,
@@ -50,6 +58,7 @@ class ManagedConnection(sqlite3.Connection):
 
 class Database:
     def __init__(self, path: str | Path):
+        self._transaction = ContextVar("database_transaction", default=None)
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as connection:
@@ -57,8 +66,37 @@ class Database:
             connection.executescript(SCHEMA)
 
     def connect(self):
+        if self._transaction.get() is not None:
+            return BorrowedConnection(self._transaction.get())
         connection = sqlite3.connect(self.path, timeout=15, factory=ManagedConnection)
         connection.row_factory = sqlite3.Row
         connection.execute('PRAGMA foreign_keys=ON')
         connection.execute('PRAGMA busy_timeout=15000')
         return connection
+
+
+    @contextmanager
+    def atomic(self):
+        """Join service reads/writes in one transaction, scoped to this execution."""
+        if self._transaction.get() is not None:
+            yield
+            return
+        with self.connect() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            token = self._transaction.set(connection)
+            try:
+                yield
+            finally:
+                self._transaction.reset(token)
+
+
+class BorrowedConnection:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def __enter__(self):
+        return self.connection
+
+    def __exit__(self, *args):
+        # The outer atomic block owns commit, rollback and close.
+        return False

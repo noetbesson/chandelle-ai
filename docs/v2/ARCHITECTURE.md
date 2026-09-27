@@ -119,3 +119,56 @@ Les noms de livraison disparaissent des fichiers actuels : `frontend/app/`,
 `reset_demo.sh`, `test_offline.py`. Les identifiants `/api/v2`, `/v2-static`,
 les tables SQL `v2_*` et le répertoire de mémoire de construction `docs/v2`
 sont conservés : ce sont des contrats/historiques, pas des copies du produit.
+
+## Boucle de mémoire continue
+
+```mermaid
+flowchart LR
+  Q[Questionnaire individuel] --> B[Mémoire B]
+  I[Échange ou demande de programme] --> H[H : extraire les assertions]
+  H --> J[Journal privé complet]
+  H --> B
+  B --> P[Deux profils personnels isolés]
+  B --> C[Projection commune selon consentement]
+  P --> R[Recherche et recommandations autorisées]
+  C --> R
+```
+
+H capture les interactions, B consolide les faits et leurs sources. Même goût :
+renforcement ; changement explicite : ancienne version conservée, nouvelle active.
+Les envies ont une échéance ; le journal n'expire pas avec elles. La projection
+commune référence les faits partagés et se recalcule après mutation/révocation.
+Elle ne contient pas les messages privés. Une préférence d'un membre ne remplace
+jamais l'aversion de l'autre membre dans son profil personnel.
+
+Les écritures d'un échange sont atomiques. Les reçus idempotents sont persistants,
+isolés par propriétaire et effacés avec ses messages. Aucun retraitement automatique
+des anciens messages ne recrée un fait supprimé. La recherche existante reste
+locale (lexicale, tokens hachés, récence/salience), pas un modèle sémantique avancé.
+Le journal est paginé ; les tokens de membre restent le mécanisme d'identité locale
+existant. La frontière optionnelle MemoryBackend ne connecte pas Mem0 en production.
+
+## Ajout Discover vocal
+
+`frontend/app/voice.mjs` complète Discover : micro sur clic, conversion WAV,
+transcription corrigible, dialogue guidé et lecteur. `H_conversation/voice.py`
+pose les questions et reçoit le planner par injection ; l'API applique les
+contrôles d'identité puis assemble les services. `integrations/gradium.py`
+assure la transcription/synthèse REST derrière activation explicite.
+E reste propriétaire des recommandations. Aucun souvenir brut envoyé au
+fournisseur, aucune nouvelle table, aucune dépendance de H vers l'API.
+Le dialogue est temporaire ; les plans restent persistants. Voir GRADIUM.md.
+
+L’interface voice.mjs utilise maintenant un cercle à états lecture/écoute/attente,
+avec envoi automatique de la transcription interne et clavier de repli fermé.
+Les événements du lecteur audio pilotent l’état visuel, sans nouveau service.
+
+## Calendrier Google par import iCal
+
+UI Nos disponibilités → API authentifiée → adaptateur integrations/google_calendar
+(téléchargement Google borné, parsing récurrences) → stream A (soustraction des
+occupations aux plages quotidiennes, persistance des créneaux libres) → intersection
+A existante → E. Aucun changement du contrat TimeWindow ni du planner.
+Les métadonnées propriétaires sont dans v2_calendar_imports ; liens secrets et
+événements ne sont pas persistés. Import ponctuel, pas de synchronisation de fond.
+Documentation et configuration dans GOOGLE_CALENDAR.md.

@@ -4,6 +4,7 @@ import {configureExperiences, inspirations, availability, submitExperience, clic
 const calls=[];let rendered='',route='',identity='a';
 const responses={
   '/inspirations':{items:[{id:'fact',privacy_scope:'PRIVATE',value:{platform:'manual',text:'<script>private</script>',proposed_tags:['jazz'],imported_at:'2026-09-26T12:00:00Z'}}]},
+  '/availability/google-calendar':{imported_slots:3},
   '/availability':{mode:'manual',both_configured:false,own_slots:[],common_slots:[]},
   '/activities/compare':{items:[{id:'a',title:'Jazz',price_per_person:null,duration_minutes:75}],known_total_eur:0,budget_complete:false,message:'À vérifier'},
   '/inspirations/import':{items:[],duplicates:0,warnings:[]},
@@ -15,6 +16,9 @@ const html=await inspirations();
 assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>/);
 assert.match(html,/signal-confirm/);assert.match(html,/Privé/);
 assert.match(await availability(),/manque encore/);
+assert.match(await availability(),/calendar-import/);
+assert.match(await availability(),/type="password"/);
+assert.match(await availability(),/aucune synchronisation automatique/);
 globalThis.document={querySelector:()=>null};
 const button=(id,action='compare-toggle')=>({dataset:{id,action,title:id},setAttribute(){}});
 for(let i=0;i<5;i++)assert.equal(await clickExperience(button(String(i))),true);
@@ -39,6 +43,13 @@ assert.equal(await clickExperience(button('','unrelated')),false);
 assert.equal(await submitExperience({id:'unrelated'}),false);
 console.log('Merged UI PASS: imports/escaping, consent, availability, comparison limit, unknown prices, booking/export actions, identity change during file read.');
 
+identity='a';let reset=false;
+await submitExperience({id:'calendar-import',values:{url:'https://calendar.google.com/calendar/ical/test/public/basic.ics',start_date:'2026-10-01',days:'14',daily_start:'08:00',daily_end:'23:00'},reset(){reset=true;}});
+assert.equal(calls.at(-1).path,'/availability/google-calendar');
+assert.equal(calls.at(-1).options.body.days,14);
+assert.equal(calls.at(-1).options.body.daily_start,'08:00');
+assert.equal(route,'availability');assert.ok(reset,'Clear secret URL after import');
+console.log('Google Calendar UI: import form, private link, actual endpoint and refresh notice PASS');
 responses['/reels/upload?wait=true']={source:'reel'};
 identity='a';
 const video={name:'video.mp4',size:100,type:'video/mp4'};

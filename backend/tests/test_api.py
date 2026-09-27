@@ -404,3 +404,213 @@ def test_personal_erasure_removes_raw_answers_and_private_events(tmp_path,monkey
         assert c.execute('SELECT COUNT(*) FROM v2_events WHERE entity_id=?',(uid,)).fetchone()[0]==0
         assert c.execute('SELECT COUNT(*) FROM v2_answers WHERE user_id=?',(other,)).fetchone()[0]==7
     assert client.get('/api/v2/date-plans',headers=headers).status_code==409
+
+
+def test_continuous_memory_reinforces_corrects_and_keeps_history(client):
+    couple,a,b=ready(client)
+    post=lambda body:client.post(PREFIX+'/conversations',headers=headers(a),json=body)
+    first=post({'text':"J'aime le jazz.",'idempotency_key':'first'})
+    assert first.status_code==200,first.text
+    one=first.json();fact=one['facts'][0]
+    assert fact['privacy_scope']=='SHARED'
+    assert fact['value']=={'values':['jazz']}
+    second=post({'text':"J'adore le jazz.",'conversation_id':one['conversation_id'],'idempotency_key':'second'}).json()
+    assert second['facts'][0]['id']==fact['id']
+    assert second['facts'][0]['reinforcement_count']==2
+    changed=post({'text':"Je n'aime plus le jazz.",'conversation_id':one['conversation_id']}).json()
+    assert changed['facts'][0]['supersedes']==fact['id']
+    assert changed['facts'][0]['category']=='dislikes'
+    profile=client.get(f"{PREFIX}/profiles/PERSON/{a['id']}",headers=headers(a)).json()
+    assert 'jazz' in profile['dislikes'] and 'jazz' not in profile['interests']
+    history=client.get(PREFIX+'/conversations/'+one['conversation_id'],headers=headers(a)).json()
+    assert len(history['messages'])==3
+    assert client.get(PREFIX+'/conversations/'+one['conversation_id'],headers=headers(b)).status_code==403
+    assert client.get(PREFIX+'/conversations',headers=headers(b)).json()['items']==[]
+    shared=client.get(PREFIX+'/memories',headers=headers(b),params={'scope':'COUPLE','entity_id':couple['couple_id']}).json()['items']
+    assert any(f['id']==changed['facts'][0]['id'] for f in shared)
+    assert all(f['id']!=fact['id'] for f in shared)
+
+
+def test_automatic_sharing_is_exact_and_revocation_survives_learning(client):
+    _,a,b=ready(client)
+    def post(text,**kw):
+        result=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':text,**kw})
+        assert result.status_code==200,result.text
+        return result.json()
+    private=post("J'aime le jazz avec PRIVATE_DETAIL.")['facts'][0]
+    assert private['privacy_scope']=='PRIVATE'
+    explicit=post("J'aime le cinéma.",privacy_scope='PRIVATE')['facts'][0]
+    assert explicit['privacy_scope']=='PRIVATE'
+    assert post("J'aime le cinéma.")['facts'][0]['privacy_scope']=='PRIVATE'
+    shared=post("J'aime le jazz.")['facts'][0]
+    assert shared['privacy_scope']=='SHARED'
+    assert client.post(PREFIX+'/memories/'+shared['id']+'/share',headers=headers(a),json={'privacy_scope':'PRIVATE'}).status_code==200
+    assert post("J'aime le jazz.")['facts'][0]['privacy_scope']=='PRIVATE'
+    assert client.get(PREFIX+'/conversations',headers=headers(b)).json()['items']==[]
+
+
+def test_learning_retry_is_idempotent_and_never_resurrects_deleted_memory(client):
+    _,a,_=ready(client)
+    payload={'text':'I love jazz','idempotency_key':'retry','privacy_scope':'PRIVATE'}
+    path=PREFIX+'/conversations'
+    first=client.post(path,headers=headers(a),json=payload).json()
+    replay=client.post(path,headers=headers(a),json=payload).json()
+    assert replay['replayed'] is True
+    assert replay['facts'][0]['reinforcement_count']==1
+    assert first['interaction_id']==replay['interaction_id']
+    bad=client.post(path,headers=headers(a),json={**payload,'text':'I love cinema'})
+    assert bad.status_code==422
+    assert client.delete(PREFIX+'/memories/'+first['facts'][0]['id'],headers=headers(a)).status_code==200
+    assert client.post(path,headers=headers(a),json=payload).json()['facts']==[]
+    history=client.get(path+'/'+first['conversation_id'],headers=headers(a)).json()
+    assert len(history['messages'])==1
+
+
+def test_temporary_wishes_expire_without_erasing_journal(client):
+    _,a,_=ready(client)
+    response=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':"J'ai envie de cinéma ce soir."})
+    assert response.status_code==200,response.text
+    result=response.json();fact=result['facts'][0]
+    assert fact['valid_to'] is not None and ':temporary:' in fact['key']
+    with client.app.state.v2['db'].connect() as c:
+        c.execute('UPDATE v2_facts SET valid_to=? WHERE id=?',('2000-01-01T00:00:00+00:00',fact['id']))
+    facts=client.get(PREFIX+'/memories',headers=headers(a)).json()['items']
+    assert fact['id'] not in {f['id'] for f in facts}
+    assert client.get(PREFIX+'/conversations/'+result['conversation_id'],headers=headers(a)).json()['messages']
+
+
+def test_conversation_atomic_rollback_and_personal_erasure(client,monkeypatch):
+    _,a,b=ready(client)
+    memory=client.app.state.v2['memory']
+    original=memory.learn
+    def fail(*args,**kw):
+        original(*args,**kw)
+        raise ValueError('injected write failure')
+    monkeypatch.setattr(memory,'learn',fail)
+    result=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':'I love jazz'})
+    assert result.status_code==422
+    assert client.get(PREFIX+'/conversations',headers=headers(a)).json()['items']==[]
+    assert not any(f['source']=='conversation' for f in client.get(PREFIX+'/memories',headers=headers(a)).json()['items'])
+    monkeypatch.setattr(memory,'learn',original)
+    first=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':'I love jazz'}).json()
+    other=client.post(PREFIX+'/conversations',headers=headers(b),json={'text':'I love cinema'}).json()
+    erased=client.request('DELETE',PREFIX+'/users/me/data',headers=headers(a),json={'confirmation':'DELETE MY DATA'})
+    assert erased.status_code==200,erased.text
+    with client.app.state.v2['db'].connect() as c:
+        assert c.execute('SELECT count(*) FROM v2_memory_interactions WHERE user_id=?',(a['id'],)).fetchone()[0]==0
+        assert c.execute('SELECT count(*) FROM v2_memory_interactions WHERE user_id=?',(b['id'],)).fetchone()[0]==1
+        assert c.execute('SELECT count(*) FROM v2_messages WHERE conversation_id=?',(first['conversation_id'],)).fetchone()[0]==0
+        assert c.execute('SELECT count(*) FROM v2_messages WHERE conversation_id=?',(other['conversation_id'],)).fetchone()[0]==1
+
+
+def test_learning_survives_reopen_and_opt_out_keeps_only_history(client):
+    _,a,_=ready(client)
+    response=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':'I love jazz','learn':False})
+    assert response.json()['facts']==[]
+    sid=response.json()['conversation_id']
+    with TestClient(create_app(client.app.state.v2['db'].path)) as reopened:
+        history=reopened.get(PREFIX+'/conversations/'+sid,headers=headers(a))
+        assert history.status_code==200 and len(history.json()['messages'])==1
+        result=reopened.post(PREFIX+'/conversations',headers=headers(a),json={'text':'I love cinema','conversation_id':sid})
+        assert result.status_code==200 and result.json()['facts']
+
+
+@pytest.mark.parametrize('text',[
+    'Do I love jazz?', 'Sam loves jazz.', 'Elle dit : j’aime le jazz.',
+    'Plan a cinema tonight', '"I love jazz"', 'Je ne sais pas si je préfère le jazz.'
+])
+def test_questions_mentions_and_third_party_are_not_durable_facts(client,text):
+    _,a,_=ready(client)
+    result=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':text})
+    assert result.status_code==200,result.text
+    assert result.json()['facts']==[]
+
+
+def test_learning_overrides_interview_only_in_authorized_projection(client):
+    couple,a,_=ready(client)
+    assert answer(client,couple,a,3,{'values':['jazz']}).status_code==200
+    result=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':"J'aime le jazz",'privacy_scope':'PRIVATE'})
+    assert result.status_code==200,result.text
+    own=client.get(f"{PREFIX}/profiles/PERSON/{a['id']}",headers=headers(a)).json()
+    assert 'jazz' in own['interests'] and 'jazz' not in own['dislikes']
+    planning=client.app.state.v2['memory'].planning_context(couple['couple_id'])
+    assert 'jazz' in planning['person_a']['dislikes']
+    shared=client.post(PREFIX+'/memories/'+result.json()['facts'][0]['id']+'/share',headers=headers(a),json={'privacy_scope':'SHARED'})
+    assert shared.status_code==200
+    planning=client.app.state.v2['memory'].planning_context(couple['couple_id'])
+    assert 'jazz' not in planning['person_a']['dislikes']
+
+
+def test_recommendations_feed_private_history(client):
+    _,a,b=ready(client)
+    result=query(client,a)
+    assert result.get('conversation_id')
+    own=client.get(PREFIX+'/conversations/'+result['conversation_id'],headers=headers(a))
+    assert own.status_code==200 and own.json()['messages']
+    assert client.get(PREFIX+'/conversations/'+result['conversation_id'],headers=headers(b)).status_code==403
+
+
+def test_repeated_opposite_assertions_in_one_turn_keep_latest(client):
+    _,a,_=ready(client)
+    result=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':"J'aime le jazz ; je déteste le jazz."})
+    assert result.status_code==200,result.text
+    assert len(result.json()['facts'])==1
+    assert result.json()['facts'][0]['category']=='dislikes'
+
+
+def test_expiration_does_not_reset_sharing_restrictions(client):
+    _,a,_=ready(client)
+    path=PREFIX+'/conversations'
+    first=client.post(path,headers=headers(a),json={'text':'I love jazz','horizon':'temporary','privacy_scope':'PRIVATE'}).json()['facts'][0]
+    with client.app.state.v2['db'].connect() as c:
+        c.execute('UPDATE v2_facts SET valid_to=? WHERE id=?',('2000-01-01T00:00:00+00:00',first['id']))
+    result=client.post(path,headers=headers(a),json={'text':'I love jazz','horizon':'temporary'})
+    assert result.status_code==200,result.text
+    assert result.json()['facts'][0]['privacy_scope']=='PRIVATE'
+
+
+def test_concurrent_retries_are_one_interaction(client):
+    from concurrent.futures import ThreadPoolExecutor
+    _,a,_=ready(client)
+    def post(_):
+        response=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':'I love jazz','idempotency_key':'concurrent'})
+        assert response.status_code==200,response.text
+        return response.json()
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results=list(pool.map(post,range(3)))
+    assert len({r['interaction_id'] for r in results})==1
+    assert all(r['facts'][0]['reinforcement_count']==1 for r in results)
+    assert len(client.get(PREFIX+'/conversations',headers=headers(a)).json()['items'])==1
+
+
+def test_shared_profile_never_overrides_partners_opposite_preference(client):
+    couple,a,b=ready(client)
+    for member,text in [(b,'I hate jazz'),(a,'I love jazz')]:
+        response=client.post(PREFIX+'/conversations',headers=headers(member),json={'text':text,'privacy_scope':'SHARED'})
+        assert response.status_code==200,response.text
+    memory=client.app.state.v2['memory']
+    context=memory.planning_context(couple['couple_id'])
+    assert 'jazz' in context['person_b']['dislikes']
+    assert 'jazz' in context['person_a']['interests']
+    shared=client.get(PREFIX+'/couples/'+couple['couple_id']+'/profile',headers=headers(a)).json()
+    assert 'jazz' in shared['dislikes'] and 'jazz' not in shared['interests']
+
+
+def test_journal_pagination_is_owner_scoped(client):
+    _,a,b=ready(client)
+    for member in [a,b,a]:
+        assert client.post(PREFIX+'/conversations',headers=headers(member),json={'text':'hello'}).status_code==200
+    first=client.get(PREFIX+'/conversations?limit=1',headers=headers(a)).json()
+    second=client.get(PREFIX+'/conversations?limit=1&offset=1',headers=headers(a)).json()
+    assert first['total']==second['total']==2
+    assert first['items'][0]['id']!=second['items'][0]['id']
+    assert client.get(PREFIX+'/conversations?offset=-1',headers=headers(a)).status_code==422
+
+
+def test_shared_interview_correction_updates_common_memory(client):
+    couple,a,_=ready(client)
+    assert answer(client,couple,a,3,{'values':['jazz']},privacy='SHARED').status_code==200
+    response=client.post(PREFIX+'/conversations',headers=headers(a),json={'text':'I love jazz','privacy_scope':'SHARED'})
+    assert response.status_code==200,response.text
+    profile=client.get(PREFIX+'/couples/'+couple['couple_id']+'/profile',headers=headers(a)).json()
+    assert 'jazz' in profile['interests'] and 'jazz' not in profile['dislikes']

@@ -8,6 +8,7 @@ def main():
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
     os.chdir(Path(__file__).resolve().parents[1])
     os.environ['OPENAI_ENABLED']='0'
+    os.environ['GRADIUM_ENABLED']='0'
     os.environ['REELS_LIVE_ENABLED']='0'
     os.environ['REELS_NORMALIZATION_BACKEND']='local'
     if sys.platform == 'win32':

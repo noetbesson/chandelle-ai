@@ -5,4 +5,23 @@
 .selection-bar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.7rem;background:#fffaf3f5;border:1px solid var(--line);border-radius:14px;padding:.8rem;margin-top:1rem;backdrop-filter:blur(12px)}
 .selection-bar span{font-size:.82rem;color:var(--muted)}.signal-text{white-space:pre-wrap;overflow-wrap:anywhere}.comparison-table{overflow-x:auto}table{border-collapse:collapse;width:100%;text-align:left}th,td{padding:.8rem .5rem;border-bottom:1px solid var(--line)}caption{text-align:left;color:var(--muted);font-size:.85rem;margin-bottom:.8rem}button[aria-pressed=true]{background:var(--wine);color:white}.card>button+button{margin:.4rem 0 .4rem .4rem}
 
+/* Voice turns: motion follows playback; labels never rely on colour alone. */
+.voice-stage{display:flex;flex-direction:column;align-items:center;text-align:center;padding:2rem 0 1rem;gap:.6rem}
+.voice-orb{--orb-a:#95d7bb;--orb-b:#287b66;position:relative;width:108px;height:108px;border:0;border-radius:50%;padding:0;margin:1.2rem;background:transparent;isolation:isolate;transition:transform .25s;opacity:1!important}
+.voice-orb:hover{background:transparent;transform:scale(1.04)}
+.voice-orb::before{content:'';position:absolute;inset:-12px;border:1px solid var(--orb-a);border-radius:50%;opacity:.45}
+.voice-orb-core{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 28% 22%,#ffffffe0,transparent 42%),linear-gradient(145deg,var(--orb-a),var(--orb-b));box-shadow:inset -10px -12px 25px #00000015,0 9px 28px color-mix(in srgb,var(--orb-b) 25%,transparent);transition:background .4s}
+.voice-orb[data-phase=speaking]{--orb-a:#a4d6ff;--orb-b:#526dc4}
+.voice-orb[data-phase=speaking] .voice-orb-core{animation:voice-talk 1.1s ease-in-out infinite alternate}
+.voice-orb[data-phase=speaking]::before{animation:voice-ring 1.8s ease-out infinite}
+.voice-orb[data-phase=listening]{--orb-a:#86e6ba;--orb-b:#1f8063}
+.voice-orb[data-phase=listening]::before{animation:voice-ring 2.4s ease-out infinite}
+.voice-orb[data-phase=thinking]{--orb-a:#e3d0ef;--orb-b:#9872ac}
+.voice-orb[data-phase=thinking] .voice-orb-core{animation:voice-wait 2s ease-in-out infinite}
+.voice-orb[data-phase=error],.voice-orb[data-phase=replay]{--orb-a:#f4d7ab;--orb-b:#be8856}
+.voice-status{font-weight:600;margin:.7rem 0 0!important}.voice-stage small{min-height:1.5em}.voice-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:.5rem;margin-top:1rem}.voice-actions button{font-size:.8rem;background:transparent}.voice-text-option{font-size:.85rem}.voice-privacy{display:block;margin-top:1rem;max-width:580px}
+@keyframes voice-talk{0%{transform:scale(.92) rotate(-5deg);border-radius:48% 52% 51% 49%}60%{transform:scale(1.06) rotate(3deg);border-radius:53% 47% 48% 52%}100%{transform:scale(.98) rotate(5deg)}}
+@keyframes voice-ring{from{transform:scale(.92);opacity:.5}to{transform:scale(1.2);opacity:0}}
+@keyframes voice-wait{50%{transform:scale(.91);opacity:.7}}
+@media(prefers-reduced-motion:reduce){.voice-orb,.voice-orb-core{transition:none}.voice-orb .voice-orb-core,.voice-orb::before{animation:none!important}}
 #share-error:empty{display:none}

@@ -41,6 +41,54 @@
 29. Suite à la demande de retirer les fichiers superflus : regrouper les 13 fichiers de tests Python en 8 fichiers par responsabilité dans backend/tests, sans suppression de fonction ni d’assertion. Les doublons visuels de fichiers V1/V2 ne sont pas assimilés à une couverture fonctionnelle redondante.
 30. Retirer les versions des noms de fichiers applicatifs : frontend/app, api/routes.py, requirements.txt, scripts/run.sh/init_demo.py/reset_demo.sh/test_offline.py. Maintenir les chemins HTTP, identifiants SQL, confirmation de reset et mémoire documentaire docs/v2 pour éviter une migration inutile. Les commandes historiques consignées précédemment restent inchangées.
 
+31. Mémoire continue (choix utilisateur, 2026-09-26) : une base SQLite avec deux
+    espaces PERSON privés et une projection COUPLE ; pas trois fichiers ni une
+    copie concurrente des faits. Le journal brut reste privé, même lorsque des
+    goûts extraits sont partagés. Historique conservé jusqu'à effacement personnel.
+32. Partage automatique autorisé uniquement pour une allowlist exacte de goûts
+    simples. Un choix de confidentialité explicite prime. Ni modèle ni analyse
+    libre ne peuvent déclarer une information sensible « partageable ».
+33. Les assertions explicites consolident une clé stable par propriétaire, sujet
+    et horizon ; répétition = renforcement, changement de polarité = supersession.
+    Les corrections durables priment sur la sélection initiale du questionnaire
+    dans les seules projections qui sont autorisées à les lire.
+34. Envies ponctuelles séparées, expiration à 30 jours (choix de durée local,
+    ajustable ultérieurement). Leur journal et provenance restent conservés.
+    Les demandes de recommandations passent aussi par H ; extraction locale
+    automatique, aucun appel fournisseur implicite. Les autres signaux structurés
+    restent capturés par les services existants (questionnaire, avis, favoris).
+35. `Database.atomic()` joint les écritures imbriquées d'une interaction dans une
+    transaction SQLite BEGIN IMMEDIATE. Extraction fournisseur avant transaction.
+    Reçu idempotent par utilisateur/clé, empreinte du payload, relecture de l'état
+    courant lors du replay pour éviter de ressusciter un fait effacé ou supersédé.
+    Aucun code Mem0 copié ; frontière MemoryBackend conservée pour un adaptateur
+    optionnel futur. Inspiration : https://github.com/mem0ai/mem0 (consulté ce tour).
+
+36. Discover vocal : Gradium REST pour transcription WAV et synthèse, httpx
+    existant sans nouveau SDK ; activation explicite et clé exclusivement serveur.
+37. Premier dialogue guidé par tours dans H, moteur E injecté pour la vraie
+    recommandation. Pas de LLM supplémentaire, de second catalogue, de migration
+    SQL ni de copie des souvenirs bruts vers le fournisseur. Texte possible en repli.
+38. Échange vocal temporaire et consentement au micro au clic ; pas d'apprentissage
+    implicite des transcriptions. Navigation/handoff ferme micro et audio ; les
+    réponses asynchrones sont invalidées. Les changements de mémoire continue
+    présents avant cette intervention restent intacts.
+
+39. Interface vocale : remplacer le transcript par un cercle piloté par les
+    événements audio playing/ended/error, pas par la seule réponse HTTP. Prises
+    au clic, envoi automatique après transcription ; clavier en repli fermé.
+    Arrêt et invalidation conservés lors d’une navigation ou d’un changement de profil.
+
+40. À la demande explicite de modifier Calendar, A reçoit l’import Google iCal.
+    Les liens de consultation privés ne sont pas lisibles sans OAuth ; accepter
+    uniquement les adresses iCal Google HTTPS. Aucune redirection ni URL externe.
+41. Import ponctuel sans stockage du lien secret : seuls créneaux libres et
+    métadonnées non sensibles sont conservés. Refuser les flux invalides au lieu
+    de considérer leur contenu manquant comme du temps libre. Chaque import
+    remplace les créneaux du seul propriétaire et invalide les suggestions.
+42. Utiliser icalendar et recurring-ical-events pour les récurrences et exceptions,
+    plutôt qu’un parseur ICS partiel fait maison. Plages de sortie choisies et
+    horizon 31 jours maximum ; événements transparents/annulés exclus des occupations.
 31. Raccorder l'import vidéo Python à l'API V2 et aux faits B existants. Les fichiers TypeScript déposés manuellement restent intacts et inactifs. Aucune base parallèle ni changement de D_connectors.
 32. Une vidéo produit un signal proposé, privé. Seule la confirmation existante autorise son utilisation. Conserver la date du signal séparément de la date d'analyse ; absence de date signifie inconnue. Les refus repérés dans le texte retirent les propositions correspondantes.
 33. Utiliser un registre de jobs opérationnel dans la même SQLite ; deux traitements maximum dans un processus. Après interruption, échec explicite et nettoyage, puis renvoi manuel. Les fournisseurs externes exigent un double accord : configuration serveur et consentement de l'import.
