@@ -86,3 +86,42 @@ pas une conversation générative avec réponses d'assistant. Adaptateur OpenAI
 existant opt-in ; aucun appel live effectué. Mem0 non installé, frontière optionnelle
 conservée. Identité locale existante, pas authentification de production.
 Aucun test visuel dans un navigateur réel, commit, push ou déploiement.
+
+## Discover vocal Gradium — 2026-09-26
+
+Bouton Discover → Discuter avec Chandelle, dialogue guidé français par tours,
+transcription corrigible, synthèse et recommandation réelle via E/A/B/C.
+Adaptateur REST Gradium opt-in, clé uniquement serveur, mode texte disponible.
+Échange vocal temporaire sans apprentissage automatique ; plans persistés.
+Changements antérieurs de mémoire continue conservés. Configuration et limites
+dans [GRADIUM.md](GRADIUM.md). Lancer `bash scripts/run_voice.sh`.
+
+Validation : 171 tests Python et suites JS/API réussis ; fournisseur simulé.
+Aucun appel Gradium live, test micro réel, commit, push ou déploiement effectué par cette intervention.
+Cette section remplace uniquement la mention antérieure « Gradium non raccordé ».
+
+## Interface vocale compacte
+
+Discover affiche désormais un cercle coloré animé, sans historique ni transcription
+visibles. Bleu = lecture réelle, vert = parole utilisateur, violet = traitement.
+Prise terminée au clic ou après 45 s, transcription envoyée automatiquement.
+Clavier en volet fermé, interruption au clic, fermeture explicite, réduction
+des animations respectée. API Gradium et moteur de recommandation inchangés.
+
+Validation du cercle : `bash scripts/check.sh` → **171 passed in 16.40s**,
+suites JS et parcours API PASS. Aucun test visuel/micro réel effectué.
+
+## Google Calendar par lien iCal
+
+Nos disponibilités accepte maintenant l’adresse iCal Google de chaque personne.
+Le stream A calcule plages choisies moins événements, puis l’intersection du
+couple. Import ponctuel 1–31 jours, heures quotidiennes réglables, 30 minutes
+minimum. URL et événements non persistés ; date/période d’import propres au membre.
+Pas d’OAuth ni de synchronisation automatique. Les événements récurrents,
+exceptions, journées entières et fuseaux sont couverts. Échec = anciens créneaux
+conservés. Métadonnées effacées avec les données personnelles.
+Guide : [GOOGLE_CALENDAR.md](GOOGLE_CALENDAR.md). Bibliothèques iCalendar installées
+dans ce workspace ; aucun agenda personnel ni appel Google réel utilisé.
+
+Validation Google Calendar : `bash scripts/check.sh` → **193 passed in 18.74s**,
+suites JS et parcours API PASS. Aucun test sur agenda personnel ou navigateur réel.

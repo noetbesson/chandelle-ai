@@ -106,3 +106,41 @@ Routes, payloads et schéma SQL inchangés. Les imports Python suivent désormai
 - Le journal n'est pas un chatbot génératif : il montre les messages réellement
   conservés et les faits extraits. OpenAI reste opt-in via l'adaptateur existant.
   Repli local limité aux assertions/préférences explicites françaises/anglaises.
+
+## Discover vocal Gradium
+
+- `POST /discover/chat` : `{messages: string[0..8], recommend: boolean=false}`,
+  chaque message 1–1500 caractères ; réponse `{reply, plans, ...run éventuel}`.
+  Historique temporaire fourni par le navigateur, pas de lecture du journal.
+  H injecte un appel E avec budget extrait, 2 activités maximum et 1 plan.
+- `POST /voice/transcribe` : corps WAV PCM mono 16 bits, Content-Type audio/wav,
+  plafond 4 500 000 octets et durée maximale 46 s (tolérance autour des 45 s UI).
+  Réponse `{text}`. Audio non conservé.
+- `POST /voice/speak` : `{text: string(1..1500)}` → audio/wav, cache privé no-store.
+- Les trois endpoints exigent X-Member-Token et les entretiens terminés. Erreurs
+  fournisseur nettoyées en 503 ; validation 422, type audio 415, taille 413.
+- `/integrations` ajoute `gradium:{enabled,configured,available}` sans clé.
+- Variables : GRADIUM_ENABLED/API_KEY/VOICE_ID, GRADIUM_STT_MODEL/TTS_MODEL.
+  Aucun schéma SQL modifié. Protocole et lancement dans GRADIUM.md.
+
+Interface vocale compacte : aucun changement HTTP. La transcription reste interne
+au navigateur et est envoyée automatiquement à /discover/chat à la fin d’une
+prise. Aucun champ transcript ni stockage supplémentaire introduit.
+
+## Import Google Calendar
+
+- `POST /availability/google-calendar` : `{url: adresse iCal Google HTTPS,
+  start_date: YYYY-MM-DD, days:1..31=14, daily_start:HH:MM=08:00, daily_end:HH:MM=23:00}`.
+  Entretien terminé et token requis. Réponse état habituel + imported_slots.
+  Validation 422 ; téléchargement inaccessible 502. Aucun remplacement en échec.
+- `GET /availability` ajoute `calendar_import:null|{imported_at,start_date,days,
+  daily_start,daily_end}` pour le propriétaire uniquement. `mode` historique
+  manual/demo conservé ; les métadonnées distinguent une importation de la saisie.
+- Saisie manuelle et imports acceptent au maximum 500 créneaux (ancienne borne 50
+  élargie). Horaires de sortie Paris, trous libres >=30 min, ni titre ni URL stockés.
+- Nouvelle table additive `v2_calendar_imports(user_id PK REFERENCES v2_users ON
+  DELETE CASCADE,couple_id,imported_at,start_date,days,daily_start,daily_end)`.
+  Registre google_ical=1 ; v2_schema reste 1. Écriture avec v2_availability dans
+  la même transaction, effacement personnel/reset inclus.
+- /integrations.calendar expose google_ical_import=true, automatic_sync=false.
+  /health et /integrations annoncent l’extension google_ical.

@@ -63,3 +63,29 @@
     courant lors du replay pour éviter de ressusciter un fait effacé ou supersédé.
     Aucun code Mem0 copié ; frontière MemoryBackend conservée pour un adaptateur
     optionnel futur. Inspiration : https://github.com/mem0ai/mem0 (consulté ce tour).
+
+36. Discover vocal : Gradium REST pour transcription WAV et synthèse, httpx
+    existant sans nouveau SDK ; activation explicite et clé exclusivement serveur.
+37. Premier dialogue guidé par tours dans H, moteur E injecté pour la vraie
+    recommandation. Pas de LLM supplémentaire, de second catalogue, de migration
+    SQL ni de copie des souvenirs bruts vers le fournisseur. Texte possible en repli.
+38. Échange vocal temporaire et consentement au micro au clic ; pas d'apprentissage
+    implicite des transcriptions. Navigation/handoff ferme micro et audio ; les
+    réponses asynchrones sont invalidées. Les changements de mémoire continue
+    présents avant cette intervention restent intacts.
+
+39. Interface vocale : remplacer le transcript par un cercle piloté par les
+    événements audio playing/ended/error, pas par la seule réponse HTTP. Prises
+    au clic, envoi automatique après transcription ; clavier en repli fermé.
+    Arrêt et invalidation conservés lors d’une navigation ou d’un changement de profil.
+
+40. À la demande explicite de modifier Calendar, A reçoit l’import Google iCal.
+    Les liens de consultation privés ne sont pas lisibles sans OAuth ; accepter
+    uniquement les adresses iCal Google HTTPS. Aucune redirection ni URL externe.
+41. Import ponctuel sans stockage du lien secret : seuls créneaux libres et
+    métadonnées non sensibles sont conservés. Refuser les flux invalides au lieu
+    de considérer leur contenu manquant comme du temps libre. Chaque import
+    remplace les créneaux du seul propriétaire et invalide les suggestions.
+42. Utiliser icalendar et recurring-ical-events pour les récurrences et exceptions,
+    plutôt qu’un parseur ICS partiel fait maison. Plages de sortie choisies et
+    horizon 31 jours maximum ; événements transparents/annulés exclus des occupations.

@@ -24,3 +24,6 @@ coverage/
 *.tsbuildinfo
 *.log
 .DS_Store
+
+# Local source archive; the repository itself is the shared source.
+/chandelle-code.zip

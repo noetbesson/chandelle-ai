@@ -147,3 +147,28 @@ des anciens messages ne recrée un fait supprimé. La recherche existante reste
 locale (lexicale, tokens hachés, récence/salience), pas un modèle sémantique avancé.
 Le journal est paginé ; les tokens de membre restent le mécanisme d'identité locale
 existant. La frontière optionnelle MemoryBackend ne connecte pas Mem0 en production.
+
+## Ajout Discover vocal
+
+`frontend/app/voice.mjs` complète Discover : micro sur clic, conversion WAV,
+transcription corrigible, dialogue guidé et lecteur. `H_conversation/voice.py`
+pose les questions et reçoit le planner par injection ; l'API applique les
+contrôles d'identité puis assemble les services. `integrations/gradium.py`
+assure la transcription/synthèse REST derrière activation explicite.
+E reste propriétaire des recommandations. Aucun souvenir brut envoyé au
+fournisseur, aucune nouvelle table, aucune dépendance de H vers l'API.
+Le dialogue est temporaire ; les plans restent persistants. Voir GRADIUM.md.
+
+L’interface voice.mjs utilise maintenant un cercle à états lecture/écoute/attente,
+avec envoi automatique de la transcription interne et clavier de repli fermé.
+Les événements du lecteur audio pilotent l’état visuel, sans nouveau service.
+
+## Calendrier Google par import iCal
+
+UI Nos disponibilités → API authentifiée → adaptateur integrations/google_calendar
+(téléchargement Google borné, parsing récurrences) → stream A (soustraction des
+occupations aux plages quotidiennes, persistance des créneaux libres) → intersection
+A existante → E. Aucun changement du contrat TimeWindow ni du planner.
+Les métadonnées propriétaires sont dans v2_calendar_imports ; liens secrets et
+événements ne sont pas persistés. Import ponctuel, pas de synchronisation de fond.
+Documentation et configuration dans GOOGLE_CALENDAR.md.

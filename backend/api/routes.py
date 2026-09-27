@@ -12,12 +12,14 @@ from backend.streams.B_memory.onboarding import OnboardingService, CoupleCreate,
 from backend.streams.B_memory.service import Privacy
 from backend.db import now, encoded
 from backend.streams.E_orchestrator.service import PlanningService, Query, Review
-from backend.streams.A_calendar.service import AvailabilityService, AvailabilityInput
+from backend.streams.A_calendar.service import AvailabilityService, AvailabilityInput, GoogleCalendarInput
 from backend.streams.F_booking.service import prepare, calendar
 from backend.streams.D_connectors.service import InspirationService, SignalImport, SignalConfirm
 from backend.streams.C_discovery.service import seed_peer_catalog
 from backend.integrations.openai import OpenAIAdapter
 from backend.integrations.gradium import GradiumAdapter, SpeechUnavailable
+from backend.integrations.google_calendar import download_calendar, CalendarUnavailable
+from starlette.concurrency import run_in_threadpool
 from backend.streams.H_conversation.voice import DiscoveryTurn, SpeechText, discovery_turn
 from backend.streams.B_memory.service import MemoryServiceV2
 from backend.streams.C_discovery.service import CatalogService
@@ -84,10 +86,10 @@ def install_routes(app,db_path):
             if not r:raise PermissionError('Unknown personal session')
 
     @router.get('/health')
-    def health():return {'status':'ok','version':'2.0','schema_version':1,'extensions':{'peer_merge':1},'offline':True}
+    def health():return {'status':'ok','version':'2.0','schema_version':1,'extensions':{'peer_merge':1,'google_ical':1},'offline':True}
 
     @router.get('/integrations')
-    def integrations():return {'gradium':GradiumAdapter().status(),'openai':OpenAIAdapter().status(),'calendar':{'mode':'manual_or_demo','timezone':'Europe/Paris','ics_export':True},'catalog':{'mode':'internal_demo'},'schema_version':1,'extensions':{'peer_merge':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
+    def integrations():return {'gradium':GradiumAdapter().status(),'openai':OpenAIAdapter().status(),'calendar':{'google_ical_import':True,'automatic_sync':False,'mode':'manual_or_import_or_demo','timezone':'Europe/Paris','ics_export':True},'catalog':{'mode':'internal_demo'},'schema_version':1,'extensions':{'peer_merge':1,'google_ical':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
 
     @router.post('/onboarding/couples')
     def create(body:CoupleCreate):return onboarding.create(body)
@@ -229,6 +231,14 @@ def install_routes(app,db_path):
     def availability_save(body:AvailabilityInput,member=Depends(ready)):
         return availability.save(member['couple_id'],member['id'],body)
 
+    @router.post('/availability/google-calendar')
+    async def import_google_calendar(body: GoogleCalendarInput, member=Depends(ready)):
+        try:
+            data = await download_calendar(body.url.get_secret_value())
+        except CalendarUnavailable as exc:
+            raise HTTPException(502, str(exc)) from None
+        return await run_in_threadpool(availability.import_calendar, member['couple_id'], member['id'], body, data)
+
     @router.get('/inspirations')
     def inspiration_list(member=Depends(ready)):
         return inspirations.list(member['couple_id'],member['id'])
@@ -363,6 +373,7 @@ def install_routes(app,db_path):
             c.execute('DELETE FROM v2_uploads WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_activity_states WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_availability WHERE user_id=?',(uid,))
+            c.execute('DELETE FROM v2_calendar_imports WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_snapshots WHERE entity_id IN (?,?)',(uid,cid))
             c.execute("UPDATE v2_memberships SET status='not_started',current_step=1,completed_at=NULL WHERE user_id=?",(uid,))
             c.execute("UPDATE v2_couples SET onboarding_status='in_progress',profile_version=0 WHERE id=?",(cid,))

@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS v2_memory_interactions(id TEXT PRIMARY KEY,user_id TE
 CREATE INDEX IF NOT EXISTS v2_conversations_owner ON v2_conversations(user_id,couple_id,created_at);
 CREATE INDEX IF NOT EXISTS v2_messages_conversation ON v2_messages(conversation_id,user_id,created_at);
 INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('continuous_memory',1);
+CREATE TABLE IF NOT EXISTS v2_calendar_imports(user_id TEXT PRIMARY KEY REFERENCES v2_users(id) ON DELETE CASCADE,couple_id TEXT NOT NULL,imported_at TEXT NOT NULL,start_date TEXT NOT NULL,days INTEGER NOT NULL,daily_start TEXT NOT NULL,daily_end TEXT NOT NULL);
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('google_ical',1);
 '''
 
 class ManagedConnection(sqlite3.Connection):
