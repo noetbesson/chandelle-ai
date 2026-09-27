@@ -11,46 +11,60 @@ export function stopVoice(){
 }
 export function voiceEntry(){return `<section class="hero card"><h2>Une idée de sortie ? Parlons-en.</h2><p>Un échange guidé en français pour trouver une recommandation à deux.</p><button class="primary" data-action="voice-open">🎙 Discuter avec Chandelle</button><div id="voice-panel" class="spaced"></div></section>`;}
 const live=s=>current===s&&!s.closed&&ctx.identity()===s.identity;
-const status=(s,text)=>{if(live(s))document.querySelector('#voice-status').textContent=text;};
-function controls(s,busy){
+const labels={ready:'À vous de parler',listening:'Je vous écoute',thinking:'Un instant…',speaking:'Chandelle vous parle',replay:'Touchez le cercle pour écouter',error:'Une petite pause'};
+function phase(s,value,text=labels[value]){
   if(!live(s))return;
-  document.querySelectorAll('#voice-panel button, #voice-panel textarea').forEach(el=>{
-    el.disabled=busy || (el.dataset.action==='voice-record'&&!s.available);
-  });
+  s.phase=value;
+  const orb=document.querySelector('#voice-orb');
+  orb.dataset.phase=value;
+  const actions={ready:'Parler à Chandelle',listening:'Terminer ma prise de parole',speaking:'Interrompre Chandelle et parler',replay:'Écouter la réponse',error:'Réessayer le micro'};
+  orb.setAttribute('aria-label',actions[value]||'Chandelle réfléchit');
+  orb.disabled=value==='thinking'||(!s.available&&value!=='replay');
+  document.querySelector('#voice-status').textContent=text;
+  document.querySelector('#voice-hint').textContent=value==='listening'?'Touchez pour terminer · 45 secondes maximum':value==='speaking'?'Touchez pour prendre la parole':value==='ready'?'Touchez le cercle pour parler':'';
+  const recommend=document.querySelector('[data-action="voice-recommend"]');
+  recommend.disabled=s.busy||value==='listening';
 }
+const status=(s,text)=>phase(s,'error',text);
 function render(s){
   if(!live(s))return;
-  document.querySelector('#voice-panel').innerHTML=`<p class="privacy">Au clic sur le micro, votre audio est transmis à Gradium pour transcription. Les réponses y sont envoyées pour lecture. Cet échange est temporaire et n’ajoute pas de goûts à votre mémoire ; le programme créé est enregistré pour le couple.</p>
-    <div id="voice-messages" aria-live="polite">${s.lines.map(([who,text])=>`<p><strong>${who==='user'?'Vous':'Chandelle'} :</strong> ${ctx.escape(text)}</p>`).join('')}</div>
-    <p id="voice-status" role="status"></p><div id="voice-audio"></div>
-    <form id="voice-form"><label for="voice-text">Votre réponse (transcription modifiable)</label><textarea id="voice-text" required maxlength="1500"></textarea>
-    <div class="row"><button type="button" data-action="voice-record" ${s.available?'':'disabled'}>🎙 Parler (45 s max)</button><button type="button" data-action="voice-stop" hidden>Terminer la prise</button><button type="submit">Envoyer</button><button type="button" data-action="voice-recommend">Voir ma recommandation</button><button type="button" data-action="voice-restart">Recommencer</button></div></form><div id="voice-plans" class="grid spaced"></div>`;
-  if(!s.available)status(s,'Voix non configurée côté serveur. Vous pouvez déjà échanger par écrit.');
+  document.querySelector('#voice-panel').innerHTML=`<div class="voice-stage">
+    <button type="button" id="voice-orb" class="voice-orb" data-action="voice-orb" data-phase="thinking" aria-label="Chandelle réfléchit" disabled><span class="voice-orb-core" aria-hidden="true"></span></button>
+    <p id="voice-status" class="voice-status" role="status" aria-live="polite"></p><small id="voice-hint"></small>
+    <div class="voice-actions"><button type="button" data-action="voice-recommend">Voir ma recommandation</button><button type="button" data-action="voice-restart">↻ Recommencer</button><button type="button" data-action="voice-close">Quitter</button></div>
+    </div><div id="voice-plans" class="grid spaced"></div>
+    <details class="voice-text-option"><summary>Utiliser le clavier</summary><p id="voice-text-reply"></p><form id="voice-form"><label for="voice-text">Votre réponse</label><textarea id="voice-text" required maxlength="1500"></textarea><button type="submit">Envoyer</button></form></details>
+    <small class="voice-privacy">Le micro s’active au clic. Votre audio est transmis à Gradium. Échange temporaire, programme enregistré pour le couple.</small>`;
 }
 async function speak(s,text){
-  if(!s.available)return;
+  if(!s.available){status(s,'Voix non configurée. Le clavier reste disponible ci-dessous.');return;}
   try{
     const blob=await ctx.audio(text,s.abort.signal);
     if(!live(s))return;
     s.audio?.pause();if(s.url)URL.revokeObjectURL(s.url);
-    s.url=URL.createObjectURL(blob);s.audio=new Audio(s.url);s.audio.controls=true;
-    document.querySelector('#voice-audio').replaceChildren(s.audio);
-    try{await s.audio.play();}catch{status(s,'Appuyez sur lecture pour écouter la réponse.');}
+    s.url=URL.createObjectURL(blob);const audio=s.audio=new Audio(s.url);
+    const activeAudio=()=>live(s)&&s.audio===audio;
+    audio.onplaying=()=>{if(activeAudio())phase(s,'speaking');};
+    audio.onwaiting=()=>{if(activeAudio())phase(s,'thinking','La voix arrive…');};
+    audio.onended=()=>{if(activeAudio())phase(s,'ready');};
+    audio.onerror=()=>{if(activeAudio())status(s,'Lecture impossible. Réessayez ou utilisez le clavier.');};
+    try{await audio.play();}catch{if(activeAudio())phase(s,'replay');}
   }catch(e){if(live(s))status(s,'Lecture vocale indisponible : '+e.message);}
 }
 async function send(s,text,recommend=false){
   if(!live(s)||s.busy)return;
-  s.busy=true;controls(s,true);s.audio?.pause();
+  s.busy=true;if(s.audio){s.audio.onplaying=s.audio.onwaiting=s.audio.onended=s.audio.onerror=null;s.audio.pause();}
   const messages=[...s.messages,...(text?[text]:[])];
   try{
-    status(s,'Chandelle prépare sa réponse…');
+    phase(s,'thinking');
     const result=await ctx.api('/discover/chat',{method:'POST',body:{messages,recommend}});
     if(!live(s))return;
-    s.messages=messages;if(text)s.lines.push(['user',text]);s.lines.push(['assistant',result.reply]);
-    render(s);controls(s,true);
+    s.messages=messages;
+    document.querySelector('#voice-text-reply').textContent=result.reply;
+    document.querySelector('#voice-text').value='';
     document.querySelector('#voice-plans').innerHTML=(result.plans||[]).map(ctx.planCard).join('');
     await speak(s,result.reply);
-  }catch(e){status(s,e.message);}finally{if(live(s)){s.busy=false;controls(s,false);}}
+  }catch(e){status(s,e.message);}finally{if(live(s)){s.busy=false;phase(s,s.phase,document.querySelector('#voice-status').textContent);}}
 }
 export async function submitVoice(form){
   if(form.id!=='voice-form')return false;
@@ -73,46 +87,51 @@ export function wavBytes(buffer){
 async function record(s){
   if(s.busy||!s.available)return;
   if(!navigator.mediaDevices?.getUserMedia||!globalThis.MediaRecorder){status(s,'Micro indisponible. Ouvrez le site sur localhost ou HTTPS, ou écrivez votre réponse.');return;}
-  s.busy=true;controls(s,true);s.audio?.pause();
+  s.busy=true;if(s.audio){s.audio.onplaying=s.audio.onwaiting=s.audio.onended=s.audio.onerror=null;s.audio.pause();}phase(s,'thinking','Ouverture du micro…');
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
     if(!live(s)){stream.getTracks().forEach(t=>t.stop());return;}
     s.stream=stream;
     const recorder=s.recorder=new MediaRecorder(stream),chunks=[];
     recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
-    recorder.onerror=()=>{stream.getTracks().forEach(t=>t.stop());s.busy=false;controls(s,false);status(s,'Enregistrement interrompu. Réessayez ou écrivez votre message.');};
+    recorder.onerror=()=>{stream.getTracks().forEach(t=>t.stop());s.busy=false;status(s,'Enregistrement interrompu. Réessayez ou utilisez le clavier.');};
     recorder.onstop=async()=>{
       clearTimeout(s.timer);stream.getTracks().forEach(t=>t.stop());if(!live(s))return;
-      document.querySelector('[data-action="voice-stop"]').hidden=true;
       let audioContext;
       try{
-        status(s,'Transcription en cours…');
+        phase(s,'thinking');
         audioContext=new AudioContext({sampleRate:24000});
         const buffer=await audioContext.decodeAudioData(await new Blob(chunks,{type:recorder.mimeType}).arrayBuffer());
         if(!live(s))return;
         const result=await ctx.api('/voice/transcribe',{method:'POST',raw:new Blob([wavBytes(buffer)],{type:'audio/wav'}),headers:{'Content-Type':'audio/wav'}});
         if(!live(s))return;
-        document.querySelector('#voice-text').value=result.text;
-        status(s,'Vérifiez la transcription, puis cliquez sur Envoyer.');
-      }catch(e){status(s,'Transcription impossible : '+e.message);}finally{await audioContext?.close();if(live(s)){s.busy=false;controls(s,false);}}
+        s.busy=false;
+        await send(s,result.text);
+      }catch(e){status(s,'Transcription impossible : '+e.message);}finally{await audioContext?.close();if(live(s)){s.busy=false;phase(s,s.phase,document.querySelector('#voice-status').textContent);}}
     };
-    recorder.start();status(s,'Je vous écoute… Cliquez sur Terminer la prise pour transcrire.');
-    const stop=document.querySelector('[data-action="voice-stop"]');stop.hidden=false;stop.disabled=false;
+    recorder.start();phase(s,'listening');
     s.timer=setTimeout(()=>{if(recorder.state==='recording')recorder.stop();},45000);
-  }catch(e){s.stream?.getTracks().forEach(t=>t.stop());if(live(s)){s.busy=false;controls(s,false);status(s,'Accès au micro impossible : '+e.message);}}
+  }catch(e){s.stream?.getTracks().forEach(t=>t.stop());if(live(s)){s.busy=false;phase(s,s.phase,document.querySelector('#voice-status').textContent);status(s,'Accès au micro impossible : '+e.message);}}
 }
 export async function clickVoice(button){
   const action=button.dataset.action;
   if(!action?.startsWith('voice-'))return false;
+  if(action==='voice-close'){
+    stopVoice();document.querySelector('#voice-panel').innerHTML='';return true;
+  }
   if(action==='voice-open'||action==='voice-restart'){
-    stopVoice();const s=current={identity:ctx.identity(),messages:[],lines:[],available:false,abort:new AbortController()};
-    render(s);controls(s,true);
+    stopVoice();const s=current={identity:ctx.identity(),messages:[],available:false,abort:new AbortController()};
+    render(s);phase(s,'thinking');
     try{const integrations=await ctx.api('/integrations');if(live(s)){s.available=!!integrations.gradium?.available;await send(s,'');}}
-    catch(e){status(s,e.message);controls(s,false);}
+    catch(e){status(s,e.message);}
   }else if(current){
-    if(action==='voice-record')await record(current);
-    if(action==='voice-stop'&&current.recorder?.state==='recording'){button.hidden=true;current.recorder.stop();}
-    if(action==='voice-recommend')await send(current,document.querySelector('#voice-text').value.trim(),true);
+    const s=current;
+    if(action==='voice-orb'){
+      if(s.recorder?.state==='recording'){phase(s,'thinking');s.recorder.stop();}
+      else if(s.phase==='replay'&&s.audio){try{await s.audio.play();}catch{status(s,'Lecture bloquée. Utilisez le clavier ou réessayez.');}}
+      else await record(s);
+    }
+    if(action==='voice-recommend')await send(s,document.querySelector('#voice-text').value.trim(),true);
   }
   return true;
 }
