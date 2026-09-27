@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-exec .venv/bin/python -m uvicorn backend.api.app:app --host 127.0.0.1 --port "${PORT:-8000}"
+exec .venv/bin/python scripts/run_local.py "$@"

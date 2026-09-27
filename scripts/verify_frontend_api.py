@@ -12,6 +12,12 @@ def main():
         client = TestClient(create_app(Path(directory) / 'ui.sqlite'))
         assert client.get('/app').status_code == 200
         assert client.get('/v2-static/app.mjs').status_code == 200
+        font = client.get('/v2-static/public/fonts/Conjiote%20Personal%20Use.otf')
+        assert font.status_code == 200 and font.content.startswith(b'OTTO')
+        assert font.content == (Path(__file__).resolve().parents[1] / 'font/Conjiote Personal Use.otf').read_bytes()
+        for asset in ['chandelier.mjs', 'discover.mjs', 'icons.mjs', 'visuals.mjs', 'vendor/motion-13.4.4.js']:
+            response = client.get('/v2-static/' + asset)
+            assert response.status_code == 200 and 'no-store' in response.headers['cache-control'], asset
         pair = client.post('/api/v2/onboarding/couples', json={'person_a': 'Alex', 'person_b': 'Blair'}).json()
         cid = pair['couple_id']
         for member in pair['members']:

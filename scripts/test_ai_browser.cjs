@@ -1,5 +1,6 @@
 /* Real local UI/API/SQLite; AI providers disabled. No external calls. */
 const assert=require('node:assert/strict');
+const completeTestOnboarding=require('../frontend/tests/onboarding-fixture.cjs');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const base=process.env.AI_TEST_URL||'http://127.0.0.1:8315';
 if(!['127.0.0.1','localhost'].includes(new URL(base).hostname))throw Error('Local test only');
@@ -8,8 +9,7 @@ if(!['127.0.0.1','localhost'].includes(new URL(base).hostname))throw Error('Loca
  try{
   const context=await browser.newContext({viewport:{width:375,height:812}});
   await context.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
-  const response=await context.request.post(base+'/api/v2/dev/seed');assert.equal(response.status(),200);
-  const couple=await response.json();const a=couple.members[0];
+  const couple=await completeTestOnboarding(context.request,base);const a=couple.members[0];
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base);
   await page.evaluate(s=>localStorage.setItem('chandelle-v2',JSON.stringify(s)),{...couple,active:a.id});

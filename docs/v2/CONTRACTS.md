@@ -14,7 +14,7 @@ All other routes require member token and derive couple from token. GET /couples
 GET /activities?query=&category=&limit=&offset=; GET /activities/{id}; POST /activities/{id}/state {state:saved|liked|disliked|neutral}.
 POST /recommendations/query {text,budget?,categories:[],radius_km?,activity_count:1..3,max_plans:1..3,mode:offline|openai,time_window?} returns {run_id,plans,trace,mode}. Plans include id,date_plan_id,activities,timeline,total_couple_cost,per_person_cost,person_a_score,person_b_score,couple_score,reason,evidence,status,generated_at,mode,source,kept_ids.
 GET /date-plans; GET /date-plans/{id}; PATCH /date-plans/{id} {status?,kept_ids?}; POST /date-plans/{id}/replace {activity_id}; POST /date-plans/{id}/feedback {rating:1..5,activity_ratings:{},text,repeat:[],avoid:[],privacy_scope,idempotency_key}. GET /history; GET /history/{id}. POST /uploads?plan_id=... raw bytes with Content-Type image/png|image/jpeg and X-Filename; GET/DELETE /uploads/{id} authenticated. No multipart dependency.
-GET /suggestions; POST /suggestions/check {}; POST /suggestions/{id}/action {action:viewed|accepted|dismissed|snoozed|regenerate}. GET /runs/{id}. GET /health; GET /integrations. Dev POST /dev/seed, /dev/reset {confirmation:'RESET LOCAL V2'} gated environment.
+GET /suggestions; POST /suggestions/check {}; POST /suggestions/{id}/action {action:viewed|accepted|dismissed|snoozed|regenerate}. GET /runs/{id}. GET /health; GET /integrations. Dev POST /dev/reset {confirmation:'RESET LOCAL V2'} gated environment. /dev/seed removed (404), including with CHANDELLE_DEV=1; no demo user profiles.
 Errors {error:{code,message}}; validation 422, auth 401/403, unknown 404, conflicts/locked 409. Lists return {items,total,limit,offset} where relevant.
 
 ## Final additions and clarifications
@@ -233,3 +233,62 @@ Les pages /, /app, /installer, /partager, /sw.js et les fichiers HTML/JS/MJS/CSS
 sous /v2-static sont servis avec Cache-Control: no-store. Les requêtes
 conditionnelles reçoivent le contenu actuel (200). Le cache du service worker
 est réservé aux icônes publiques. Contrats API et stockage utilisateur inchangés.
+
+## Dialogue Ask à session
+
+Le contrat actuel, les codes de diagnostic et le raccordement de sources sont
+décrits dans [ASK_DIALOGUE.md](ASK_DIALOGUE.md). POST /ask/chat
+accepte ChatTurn (session/message/request_id/revision/consentements) ou l’ancien
+DiscoveryTurn (messages/recommend). Les champs supplémentaires sont refusés.
+DELETE /ask/chat/{session_id} : propriétaire uniquement. Extension additive
+SQL discovery_dialogue=1, v2_discovery_sessions ; purge expirée à l’accès.
+WebQuery ajoute area (défaut Île-de-France), sans changer les anciens appelants.
+Les erreurs de planification exposent un code explicite dans error.code.
+OPENAI_DIALOGUE_MODEL est configurable, soumis à la même politique de quota.
+CHANDELLE_DB_PATH configure la base de l’instance ASGI globale ; check.sh choisit
+un chemin temporaire pour isoler l’import. create_app(db_path) reste prioritaire
+pour les fixtures.
+
+Ask possède maintenant le dialogue ; Discover conserve le catalogue. Les routes
+POST/DELETE /discover/chat restent des alias de compatibilité aux routes /ask/chat.
+Même session, identité et idempotence quel que soit le chemin. Aucun changement SQL.
+
+## Lanceurs locaux et .env
+
+run.sh / run_voice.sh lisent le .env racine via scripts/run_local.py. Export >
+fichier > défaut. CHANDELLE_ENV_FILE peut désigner explicitement un autre fichier ;
+un chemin explicite absent est une erreur. Noms autorisés uniquement ; pas de
+source/eval/interpolation. --check-env affiche uniquement présence et activation,
+retourne 1 si une des trois valeurs voix/OpenAI manque, n’appelle aucun fournisseur.
+Les routes API et le lancement ASGI direct ne chargent pas implicitement .env.
+
+## Entrée Ask et navigation
+
+Affichage initial = chandelier inactif ; première activation = /integrations puis
+POST /ask/chat, avec les consentements choisis avant le clic. Au clavier, le premier
+POST contient directement le message saisi. Terminer envoie DELETE de la session
+et réaffiche l’état initial. Navigation/profil continuent d’arrêter audio/micro et
+invalider les réponses tardives. Aucun changement des contrats HTTP ou SQL.
+Les routes UI secondaires appartiennent à Settings ; l’ancien lien home mène à Ask.
+
+## Présentation Discover éditoriale
+
+Aucun nouveau contrat HTTP/SQL. Les deux GET activités et leurs filtres restent
+identiques ; regroupement par type et séparation de la démonstration côté UI.
+Les actions de détail/comparaison/composition gardent leurs identifiants et payloads.
+Conjiote, SVG et Motion sont des assets publics sous /v2-static, sans clé ni réseau
+fournisseur. Aucune donnée du catalogue n'est corrigée ou enrichie par le rendu.
+
+## Profil initial sans données d’exemple (27 septembre 2026)
+
+La création du couple ne crée aucun fait mémoire. Seules les réponses enregistrées
+par chaque membre alimentent son profil initial (`source=onboarding`). Une étape
+ignorée n’invente aucun goût, refus ou plafond de budget. La correction du formulaire
+supersède le fait précédent. Les souvenirs ajoutés volontairement, consentements
+et règles de confidentialité existants restent applicables.
+
+`/dev/seed` n’existe plus, y compris en mode développeur. `scripts/init_demo.py`
+initialise uniquement le schéma et le catalogue d’activités ; `--seed` est refusé.
+L’ancien fichier non utilisé `backend/shared/couple-profile.json` est supprimé à
+la demande utilisateur. Les exemples de personnes sont cantonnés aux tests.
+Aucune migration destructrice des réponses existantes n’est effectuée.

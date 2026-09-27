@@ -12,15 +12,20 @@ const context={identity:()=>identity,escape:s=>s.replaceAll('<','&lt;'),planCard
     return {reply:'Bonjour <test>',plans:options.body.recommend?[{id:'real-plan'}]:[]};
   }};
 configureVoice(context);
-assert.match(voiceEntry(),/voice-open/);
-await clickVoice({dataset:{action:'voice-open'}});
+assert.match(voiceEntry(),/data-action="voice-start"/);
+assert.match(voiceEntry(),/voice-candles/);
+assert.doesNotMatch(voiceEntry(),/Discuter avec Chandelle|data-action="voice-open"/);
+assert.equal(calls.length,0,'Rendering the idle candle must not contact any endpoint');
+await clickVoice({dataset:{action:'voice-start'}});
 assert.equal(node('#voice-text-reply').textContent,'Bonjour <test>');
 assert.doesNotMatch(node('#voice-panel').innerHTML,/voice-messages|voice-audio|transcription modifiable/);
 assert.match(node('#voice-panel').innerHTML,/voice-orb/);
 assert.match(node('#voice-panel').innerHTML,/audio est transmis à Gradium/);
 node('#voice-text').value='Une balade';
 await submitVoice({id:'voice-form'});
-assert.deepEqual(calls.at(-1)[1].body.messages,['Une balade']);
+assert.equal(calls.at(-1)[1].body.message,'Une balade');
+assert.equal(calls.at(-1)[1].body.cloud_consent,false);
+assert.ok(calls.at(-1)[1].body.request_id);
 node('#voice-text').value='';
 await clickVoice({dataset:{action:'voice-recommend'}});
 assert.equal(calls.at(-1)[1].body.recommend,true);
@@ -29,7 +34,7 @@ assert.match(node('#voice-plans').innerHTML,/real-plan/);
 // A late response from A must never render into B's screen.
 let resolve;
 configureVoice({...context,api:async(path)=>path==='/integrations'?{gradium:{available:false}}:new Promise(r=>{resolve=r;})});
-const opening=clickVoice({dataset:{action:'voice-open'}});
+const opening=clickVoice({dataset:{action:'voice-start'}});
 await new Promise(r=>setTimeout(r,0));
 stopVoice();identity='b';node('#voice-panel').innerHTML='B PRIVATE SCREEN';
 resolve({reply:'A PRIVATE RESPONSE',plans:[]});await opening;
@@ -37,7 +42,7 @@ assert.equal(node('#voice-panel').innerHTML,'B PRIVATE SCREEN');
 
 // Permission granted after navigation must immediately release the microphone.
 configureVoice({...context,api:async(path)=>path==='/integrations'?{gradium:{available:true}}:{reply:'Bonjour',plans:[]}});
-await clickVoice({dataset:{action:'voice-open'}});
+await clickVoice({dataset:{action:'voice-start'}});
 let permission,stops=0;
 Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{getUserMedia:()=>new Promise(r=>{permission=r;})}}});
 globalThis.MediaRecorder=class {};
@@ -49,7 +54,7 @@ assert.equal(stops,1);
 let playback;
 globalThis.Audio=class {constructor(){playback=this;} async play(){this.onplaying?.();} pause(){}};
 configureVoice({...context,audio:async()=>new Blob(['audio']),api:async(path)=>path==='/integrations'?{gradium:{available:true}}:{reply:'Question',plans:[]}});
-await clickVoice({dataset:{action:'voice-open'}});
+await clickVoice({dataset:{action:'voice-start'}});
 assert.equal(node('#voice-orb').dataset.phase,'speaking');
 playback.onended();
 assert.equal(node('#voice-orb').dataset.phase,'ready');
@@ -71,11 +76,11 @@ configureVoice({...context,audio:async()=>new Blob(['audio']),api:async(path,opt
  if(path==='/voice/transcribe')return {text:'Une balade à deux'};
  return {reply:'Question suivante',plans:[]};
 }});
-await clickVoice({dataset:{action:'voice-open'}});playback.onended();
+await clickVoice({dataset:{action:'voice-start'}});playback.onended();
 await clickVoice({dataset:{action:'voice-orb'}});
 assert.equal(node('#voice-orb').dataset.phase,'listening');
 await clickVoice({dataset:{action:'voice-orb'}});await recorder.done;
-assert.deepEqual(calls.at(-1)[1].body.messages,['Une balade à deux']);
+assert.equal(calls.at(-1)[1].body.message,'Une balade à deux');
 assert.equal(node('#voice-orb').dataset.phase,'speaking');
 stopVoice();
 
@@ -96,7 +101,7 @@ globalThis.AudioContext=class {
  createMediaStreamSource(){return audioNode('microphone');}
  async close(){closedContexts++;}
 };
-await clickVoice({dataset:{action:'voice-open'}});
+await clickVoice({dataset:{action:'voice-start'}});
 assert.match(node('#voice-panel').innerHTML,/voice-candles/);
 assert.match(node('#voice-panel').innerHTML,/candle-flame/);
 assert.equal(node('#voice-orb').dataset.phase,'speaking');
@@ -125,3 +130,58 @@ assert.equal(view.getInt16(44,true),32767);
 assert.equal(view.getInt16(46,true),0);
 assert.equal(bytes.byteLength,48);
 console.log('Voice chandelier: sound-reactive flames, playback/microphone routing, cleanup, turns, privacy and PCM WAV PASS');
+
+// Stateful protocol, source escaping, consent, retry deduplication and close cleanup.
+const {suggestionCards}=await import('../app/voice.mjs');
+assert.doesNotMatch(suggestionCards([{name:'<img src=x>',website:'javascript:alert(1)',unknown:[],reasons:[]}]),/<img|href=/);
+assert.match(suggestionCards([{name:'Lieu',website:'https://example.org',unknown:['Prix inconnu'],reasons:[]}]),/Prix inconnu/);
+let turnCalls=[],failNext=false;
+configureVoice({...context,api:async(path,options)=>{
+ if(path==='/integrations')return {gradium:{available:false}};
+ if(options.method==='DELETE'){turnCalls.push([path,options]);return {closed:true};}
+ turnCalls.push([path,options]);
+ if(failNext){failNext=false;throw Error('Connection lost');}
+ return {session_id:'session-A',revision:(options.body.revision||0)+1,reply:'Continuons',plans:[],suggestions:[],mode:'openai'};
+}});
+await clickVoice({dataset:{action:'voice-start'}});
+node('#voice-cloud').checked=true;node('#voice-web').checked=true;
+node('#voice-text').value='Finalement, plutôt japonais';failNext=true;
+await submitVoice({id:'voice-form'});
+const failedBody=turnCalls.at(-1)[1].body;
+await submitVoice({id:'voice-form'});
+assert.equal(turnCalls.at(-1)[1].body.request_id,failedBody.request_id);
+assert.equal(failedBody.session_id,'session-A');
+assert.equal(failedBody.revision,1);
+assert.equal(failedBody.cloud_consent,true);assert.equal(failedBody.web_consent,true);
+stopVoice();assert.equal(turnCalls.at(-1)[0],'/ask/chat/session-A');
+assert.equal(turnCalls.at(-1)[1].method,'DELETE');
+console.log('Ask dialogue UI: sessions, consent, retry identity, safe sources and close PASS');
+
+// Finishing keeps a clickable idle candle; typing can also start without a welcome turn.
+await clickVoice({dataset:{action:'voice-close'}});
+assert.match(node('#voice-panel').innerHTML,/data-action="voice-start"/);
+assert.match(node('#voice-panel').innerHTML,/Touchez la chandelle pour commencer/);
+const beforeTypedStart=turnCalls.length;
+node('#voice-text').value='Un restaurant calme';node('#voice-cloud').checked=true;
+await submitVoice({id:'voice-form'});
+assert.equal(turnCalls.length,beforeTypedStart+1);
+assert.equal(turnCalls.at(-1)[1].body.message,'Un restaurant calme');
+assert.equal(turnCalls.at(-1)[1].body.cloud_consent,true);
+assert.equal(turnCalls.at(-1)[1].body.session_id,null);
+assert.match(node('#voice-panel').innerHTML,/id="voice-cloud" checked/);
+assert.equal(node('.voice-text-option').open,true);
+stopVoice();
+
+// A second click while the first start awaits configuration cannot create two sessions.
+let releaseIntegration,starts=0;
+configureVoice({...context,api:async(path,options)=>{
+ if(path==='/integrations')return new Promise(resolve=>{releaseIntegration=resolve;});
+ if(options.method==='POST')starts++;
+ return {reply:'Bonjour',plans:[],mode:'offline'};
+}});
+const firstStart=clickVoice({dataset:{action:'voice-start'}});
+await clickVoice({dataset:{action:'voice-start'}});
+releaseIntegration({gradium:{available:false}});await firstStart;
+assert.equal(starts,1);
+stopVoice();
+console.log('Ask entry PASS: visible idle candle, no automatic call, preserved consent, direct keyboard start, close/restart and duplicate-click guard.');

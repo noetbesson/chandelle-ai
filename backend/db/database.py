@@ -47,6 +47,13 @@ CREATE TABLE IF NOT EXISTS v2_ai_calls(id TEXT PRIMARY KEY,created_at TEXT NOT N
 CREATE TABLE IF NOT EXISTS v2_web_cache(owner_id TEXT NOT NULL,cache_key TEXT NOT NULL,payload TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(owner_id,cache_key));
 INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('ai_discovery',1);
 
+CREATE TABLE IF NOT EXISTS v2_discovery_sessions(
+ id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES v2_users(id) ON DELETE CASCADE,
+ couple_id TEXT NOT NULL REFERENCES v2_couples(id),initial_request_id TEXT NOT NULL,
+ revision INTEGER NOT NULL,in_flight TEXT,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,payload TEXT NOT NULL,
+ UNIQUE(owner_id,initial_request_id));
+CREATE INDEX IF NOT EXISTS v2_discovery_sessions_expiry ON v2_discovery_sessions(expires_at);
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('discovery_dialogue',1);
 '''
 
 class ManagedConnection(sqlite3.Connection):

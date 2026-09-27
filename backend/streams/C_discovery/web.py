@@ -14,6 +14,7 @@ from backend.streams.H_conversation.service import VOCABULARY
 
 class WebQuery(BaseModel):
     text: str = Field(min_length=3, max_length=800)
+    area: str = Field(default='Île-de-France',min_length=1,max_length=120)
     cloud_consent: bool = False
     use_shared_interests: bool = False
 
@@ -36,7 +37,7 @@ class WebDiscovery:
         topics = self.topics(member, body.use_shared_interests)
         model = os.getenv('OPENAI_WEB_MODEL', 'gpt-4.1-mini')
         payload = {'request': body.text.strip(), 'shared_activity_topics': topics,
-                   'region': 'Île-de-France uniquement', 'today': datetime.now(timezone.utc).date().isoformat()}
+                   'region': body.area, 'today': datetime.now(timezone.utc).date().isoformat()}
         cache_key = hashlib.sha256(json.dumps([payload, model, 1], sort_keys=True).encode()).hexdigest()
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
         with self.db.connect() as c:
@@ -57,10 +58,10 @@ class WebDiscovery:
             response = client.responses.create(
                 model=model, store=False, max_output_tokens=1600, max_tool_calls=1, timeout=35,
                 tools=[{'type': 'web_search', 'search_context_size': 'low',
-                        'user_location': {'type': 'approximate', 'country': 'FR', 'region': 'Île-de-France', 'city': 'Paris'}}],
+                        'user_location': {'type': 'approximate', 'country': 'FR', **({'region':'Île-de-France','city':'Paris'} if body.area=='Île-de-France' else {})}}],
                 tool_choice='required', include=['web_search_call.action.sources'],
                 instructions=(
-                    'Réponds en français. Trouve au plus cinq sorties concrètes en Île-de-France adaptées à la demande. '
+                    'Réponds en français. Trouve au plus cinq sorties concrètes dans la zone region indiquée, adaptées à la demande. Ne substitue pas Paris à une autre ville. '
                     'Utilise la recherche web et cite les pages consultées pour chaque proposition. Privilégie les pages '
                     'officielles de lieux et agendas, Paris.fr, Sortiraparis, AlloCiné, UGC, Tripadvisor ou Google Maps '
                     'lorsqu’elles sont accessibles. Ne prétends jamais accéder aux comptes ou couvrir toutes les activités. '

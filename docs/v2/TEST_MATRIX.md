@@ -338,3 +338,133 @@ Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
   du vrai worker dans VM, purge de l’ancien cache uniquement, passage réseau pour
   pages/modules/CSS/API, cache d’icônes conservé. Ajouté à scripts/check.sh.
 - Aucun appel Gradium live ni validation visuelle dans un navigateur réel.
+
+## Dialogue Discover libre — 27 septembre 2026
+
+- Baseline issue de PR #5 : 255 passed, 12 skipped, 5 subtests en 22.95 s,
+  suites Node et parcours API réussis dans une copie de validation. L’invocation
+  directe initiale avait échoué pendant l’import SQLite (dépôt hors sandbox).
+  Dans la copie, check.sh terminait avec 129 uniquement au git diff final, car
+  la copie n’est pas un dépôt Git. Ces invocations ne sont pas annoncées comme
+  un check.sh complet réussi.
+- Première suite de dialogue : 16 succès, 2 échecs de fixture (sérialisation
+  d’une classe de schéma dans une assertion et mauvaise catégorie du fait
+  practical à supprimer). Fixtures corrigées ; 29 tests ciblés passent ensuite.
+- Une assertion de ranking direct E utilisait un créneau UTC avec ses heures
+  candidates locales Paris ; fixture normalisée par paris_window conformément
+  au contrat E. Vérification : 29 tests dialogue/architecture, 5.97 s.
+- Validation du schéma Responses avec le SDK installé : additionalProperties=false,
+  13 champs d’intention requis dans le schéma strict. Aucun appel API.
+- Suite intermédiaire complète dans la copie : 280 passed, 12 skipped,
+  5 subtests en 28.95 s ; suites Node/API PASS, puis même limite git de la copie.
+- Navigateur réel sur 127.0.0.1:8316, base jetable et fournisseurs désactivés :
+  profils de test, Discover, chandelier, demande d’exposition à Paris avec montant
+  en lettres, source réelle et prix inconnu visibles, correction vers restaurant
+  japonais sans restaurant inventé, nouvelle demande d’exposition réussie. Aucun
+  message d’erreur console. Micro et fournisseur live non testés.
+- Tests ajoutés : corrections de contexte, dates, continuité au-delà de 3 tours,
+  sources/événements expirés, budget/localisation/exclusions, préférences précises
+  conservées jusque dans E, vrai programme enregistré à partir d’une source simulée,
+  calendrier vide/incomplet/expiré/sans intersection, données insuffisantes, quota,
+  absence de cloud sans consentement, idempotence, concurrence, fermeture en cours,
+  isolation partenaire, effacement et erreurs fournisseur sans fuite.
+- Frontend : les tests exercent maintenant tous les callbacks enregistrés pour
+  détecter réellement les requêtes doublées ; session/révision/consentements,
+  renvoi du request_id et échappement des sources sont vérifiés.
+- Validation finale dans le worktree Git noe/api_gradium, base 1505aa3 avec PR #6 :
+  bash scripts/check.sh → code 0 ; **289 passed, 12 skipped, 5 subtests passed
+  in 30.95s**. Toutes les suites Node, le parcours API, la syntaxe shell et
+  git diff --check passent. Base SQLite temporaire, aucun appel fournisseur live.
+
+## Déplacement du dialogue dans Ask — 27 septembre 2026
+
+- Tests de navigation : Ask contient le dialogue, Discover garde filtres et fiches,
+  aucune création de session au simple changement d’onglet ; suites UI/voice/
+  experiences réussies.
+- Les 26 tests de dialogue passent par /ask/chat. Un test supplémentaire vérifie
+  la reprise idempotente et la fermeture de la même session via l’ancien alias.
+  Première assertion corrigée pour tenir compte du marqueur replayed=true attendu
+  (289 succès, un échec d’assertion, aucune erreur de route).
+- Validation finale : bash scripts/check.sh, code 0 ; **290 passed, 12 skipped,
+  5 subtests passed in 29.63s**, suites JavaScript/API et git diff --check réussis.
+- Navigateur réel, base jetable, OpenAI/Gradium désactivés : Ask → ouverture du
+  chandelier → demande clavier d’exposition à Paris avec budget parlé → fiche
+  sourcée affichée ; navigation Discover sans dialogue ni formulaire cloud.
+  Aucune erreur console. Serveur et onglet de test fermés après vérification.
+
+## .env et lanceurs locaux — 27 septembre 2026
+
+- scripts/test_offline.py backend/tests/test_local_launcher.py : 13 passed in
+  0.56s. Lecture comme données, aucune exécution/interpolation, variables système
+  non autorisées ignorées, priorité des exports, absence de questions si configuré,
+  désactivation explicite conservée, erreurs masquées, lien partagé, lancement
+  depuis un autre dossier et absence de publication HTTP des chemins .env.
+- bash scripts/check.sh : code 0 ; **303 passed, 12 skipped, 5 subtests passed
+  in 28.00s** ; suites Node/API et git diff --check PASS. Connexions réseau interdites.
+- bash scripts/run_voice.sh --check-env avec le .env utilisateur lié : code 0,
+  trois champs renseignés et activations présentes. Aucun secret affiché, aucun
+  serveur ni appel API. Audit local : .env ignoré/non suivi dans les deux checkouts,
+  aucun historique Git de ce chemin dans le dépôt, aucun match des clés actuelles
+  dans les fichiers suivis ou non ignorés, fichier utilisateur en 0600.
+- La validation distante des identifiants et du voice ID reste non effectuée.
+
+## Diagnostic de l’onglet utilisateur sur 8001
+
+- HTTP local : HTML, app.mjs, voice.mjs et sw.js identiques aux fichiers du
+  worktree Ask, réponses 200 et no-store. Processus existant identifié dans ce
+  worktree ; aucun arrêt/redémarrage du serveur utilisateur.
+- Chrome de l’utilisateur : ancien formulaire Ask observé, rechargement normal,
+  bouton Discuter avec Chandelle dans Ask, catalogue sans dialogue dans Discover,
+  retour à Ask. Identité conservée. Aucun appel Gradium/OpenAI déclenché.
+- Après ajout du rappel de rechargement dans run_local.py :
+  scripts/test_offline.py backend/tests/test_local_launcher.py → 13 passed in
+  0.54s ; git diff --check réussi. Pas de modification fonctionnelle du backend/UI.
+
+## Navigation simplifiée
+
+- Tests Node UI/voice/experiences ciblés réussis : trois entrées, Ask par défaut,
+  chandelier initial sans appels, cinq rubriques Settings avec retour, accès aux
+  outils avancés, premier clic, consentements conservés, départ au clavier,
+  fin/reprise, clics initiaux concurrents dédupliqués et anciens contrôles audio.
+- bash scripts/check.sh → code 0 ; **303 passed, 12 skipped, 5 subtests passed
+  in 29.04s**, toutes les suites Node/API réussies, git diff --check réussi.
+- Navigateur réel de test 8316, fournisseurs désactivés : accueil/chandelier,
+  Settings et calendrier/retour, clic initial, Terminer puis départ au clavier,
+  demande d’exposition avec réponse sourcée. Rendu desktop inspecté.
+
+## Identité visuelle et Discover éditorial — 27 septembre 2026
+
+- Première assertion de prix négatif corrigée : elle comparait aussi les nombres
+  des tracés SVG au lieu du texte affiché. Aucun comportement produit en cause.
+- Première suite complète : Python/Node/API réussis, code final 2 dû à un espace
+  final préexistant sur la ligne CSS modifiée. Espace supprimé.
+- Validation finale `bash scripts/check.sh` : **code 0, 303 passed, 12 skipped,
+  5 subtests passed in 50.39s**. Syntaxe JS/shell, toutes les suites Node,
+  parcours FastAPI et `git diff --check` réussis. Aucun appel fournisseur live.
+- Deux nouvelles suites Node : regroupement sans mutation des données ni ordre
+  interne changé, dates/heures réellement disponibles, prix nul/gratuit/inconnu,
+  échappement, URLs, actions démo, réduction du mouvement, changement de préférence,
+  nettoyage à la navigation et repli des images en erreur.
+- Parcours API : livraison réelle de la police OpenType identique à l'original,
+  modules et Motion local accessibles avec no-store, puis parcours antérieur
+  d'entretiens, profils, recommandation, activité imposée, acceptation et avis.
+- Navigateur réel à **375×812, 390×844, 430×932 et 1280×900** : captures inspectées,
+  titre Discover sur deux lignes, pas de débordement horizontal, prix sans
+  débordement et icônes 16 px sur mobile. Conjiote visible et famille calculée
+  correcte, Helvetica Neue pour le corps ; transformation des flammes observée.
+- Recherche photographie → exposition sourcée ; filtre À table → aucun résultat
+  réel inventé ; dépliage des exemples → sélection et vraie comparaison API
+  (48 € pour deux), retour Ask inactif et cinq rubriques Settings. Console sans
+  erreur. Base de fixture séparée, OpenAI/Gradium désactivés ; photos absentes des
+  quatre données réelles, donc repli d'image cassée couvert par test Node uniquement.
+- Empreintes des fichiers backend Python/JSON identiques avant/après cette refonte.
+  Aucune modification API, recommandation ou donnée du catalogue.
+
+## Suppression des profils utilisateur de démonstration — 27 septembre 2026
+
+- Tests ciblés : `CHANDELLE_DB_PATH=/tmp/chandelle-profile-unit-import.sqlite3 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q backend/tests/test_api.py backend/tests/test_dialogue.py` → **80 passed in 17.56s**.
+- `node frontend/tests/test_ui.mjs` → PASS : aucun bouton de seed, ancien événement sans création de compte ni remplacement de session.
+- `node --check` : app.mjs, onboarding-fixture.cjs, test_ai_browser.cjs, test_share_browser.cjs → PASS. Ces deux parcours navigateur historiques n’ont pas été exécutés.
+- `bash scripts/check.sh` → code 0, **307 passed, 12 skipped, 5 subtests passed in 30.27s** ; suites Node, contrats frontend/API, syntaxe et `git diff --check` PASS. Réseau interdit par le lanceur Python.
+- Régressions ajoutées : démarrage/réouverture sans profil fictif, création d’un couple sans faits ; `/dev/seed` absent même avec CHANDELLE_DEV=1 ; initialisation CLI sans profil ni effet sur une autre base ; recommandation japonaise permise sans refus, refus d’un autre couple sans effet, refus explicite du partenaire appliqué puis annulé par correction ou skip, résultat persistant après réouverture.
+- Aucune donnée utilisateur effacée, aucun test fournisseur live.
