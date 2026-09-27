@@ -1,5 +1,60 @@
 # Decisions
 
+## 27 septembre 2026 : profondeur et coût de recherche
+
+À la demande de Maxime, le plafond passe de 2 à 4 appels outils web par demande,
+avec un objectif de 16 fiches distinctes au maximum, réparties entre catégories.
+La requête est ciblée par le texte utilisateur, les catégories, le budget, la date,
+la zone et, sur choix explicite, les thèmes partagés autorisés du couple. Les notes
+privées et les refus personnels ne sont pas envoyés au web ; le filtrage local reste
+applicable et cette hausse ne corrige pas les refus éliminant les résultats.
+
+Réglages : `OPENAI_WEB_MAX_TOOL_CALLS=4` (1..4), `OPENAI_WEB_RESULT_LIMIT=16` (1..16),
+9 000 tokens de sortie, timeout 50 s, zéro retry. Configuration invalide : aucun
+appel payant. Le cache tient compte de la profondeur. Les traces distinguent maintenant
+le nombre de fiches brutes, d'appels outils terminés, de recherches (`action.type=search`)
+et de sources. Les anciens historiques ne permettent pas de compter les appels outils
+exacts ; leurs tokens sont enregistrés, pas la facture fournisseur.
+
+Plafond local de réservations : 2 USD/jour sur cette machine (anciennement 1), total
+10 USD conservé ; 0,10 USD réservé par tentative web et 0,02 USD par analyse. Ce sont
+des allocations prudentes, pas les coûts facturés ni un solde OpenAI.
+
+Tarifs consultés dans OpenAI Docs le 27/09/2026 : recherche web 10 USD/1 000 appels ;
+GPT-4.1-mini entrée 0,40 USD/million de tokens, sortie 1,60 USD/million. Le contenu
+web est facturé par bloc fixe de 8 000 tokens d'entrée/appel. Donc 100 appels outils
+représentent 1,32 USD avant les autres tokens. Estimation de 100 demandes complètes
+utilisant chacune quatre recherches : environ 6 à 10 USD selon les tokens, hors taxes,
+services additionnels et éventuels tarifs différents. Ce n'est pas un devis garanti.
+Sources : https://developers.openai.com/api/docs/pricing et
+https://developers.openai.com/api/docs/models/gpt-4.1-mini .
+
+Validation : `python scripts/test_offline.py backend/tests/test_ai_discovery.py
+backend/tests/test_web_pipeline.py backend/tests/test_date_deck.py --tb=short
+--basetemp .runtime/search-depth-tests` : **40 passed in 43.25s**. Fournisseurs simulés,
+aucun appel API payant effectué pour cette modification. Le plafond configuré ne
+prouve pas que le modèle utilise quatre recherches ou retourne seize lieux.
+
+
+## 27 septembre 2026 : suppression du catalogue d'activités fictives
+
+- Un seul parcours E/C alimente Ask, Discover et les suggestions. Le client CLI de C
+  appelle cette API authentifiée au lieu d'entretenir son propre collecteur/fichier.
+- Les fichiers d'activités statiques V1, E, peer et le cache JSON parallèle ont été
+  supprimés, ainsi que les modules mock servis au navigateur. Les tests injectent des
+  réponses fournisseur générées à la demande, hors imports de l'application.
+- Le manque de prix/dates/coordonnées ne supprime pas une piste de découverte ; il
+  empêche sa composition lorsque ces informations sont nécessaires. La disponibilité
+  inconnue est affichée comme telle ; une indisponibilité explicite élimine la fiche.
+- Normaliser « Paris » et les noms des départements franciliens avant le filtre IDF.
+  La comparaison brute avec les seuls codes numériques éliminait les neuf fiches du
+  premier appel live. Chaque filtre enregistre désormais ses pertes exactes.
+- Les demandes de visite de lieux permanents peuvent recevoir un horaire proposé,
+  étiqueté comme tel. Les séances/événements exigent leurs horaires publiés.
+- Aucun catalogue de secours si l'analyse, la recherche ou le quota échoue. Les
+  réponses sont explicites et les limites fournisseur restent visibles dans les faits.
+
+
 1. Add V2 beside V1; retain all V1 models and routes. Do not modify shared/A/D/F contracts.
 2. SQLite SQL facts and append-only events are authoritative. JSON payloads are acceptable for typed bounded subdocuments, not permission checks. Schema migrations are root-owned.
 3. Local identity uses member capability tokens (hashed at rest), delivered only on couple creation and explicit local handoff. This is local device privacy, not production authentication. Member headers are required on personal data; a member ID alone never authorizes access. Shared device handoff clears rendered answers. No global listing of tokens.
@@ -61,3 +116,48 @@
 
 
 31. Discovery réel : exposer le cache Activity validé via `GET /api/v2/activities/real` et l’afficher séparément des 76 exemples fictifs. Aucun chargement web au démarrage ou à l’affichage. Les fiches sans prix, durée ou coordonnées restent consultables avec lien source, mais ne deviennent pas des candidats E : aucune donnée de planification n’est inventée.
+
+
+## Décision Ask web, 26 septembre 2026
+
+Réutiliser WebDiscovery et son quota plutôt qu'ajouter un agent, une base ou un deuxième connecteur. Distinguer la suggestion web citée d'un programme persisté et vérifié : aucune conversion automatique d'une réponse libre en réservation ou candidat planifiable. Conserver la composition locale et la sélection des activités existantes.
+
+## Décisions agendas et proactivité, 26 septembre 2026
+
+La mission utilisateur autorise explicitement l'extension de A. Garder les opérations existantes sur les intervalles dans time_slots.py, réexportées par service.py, pour éviter les imports cycliques. Utiliser une interface CalendarProvider et la SQLite existante. Les tokens OAuth, le cache MSAL et les plages occupées sont chiffrés ; aucun titre personnel n'est persisté. OAuth state consommé une seule fois, PKCE SDK, cookie de liaison navigateur HttpOnly/SameSite Lax/Secure sous HTTPS, callback lié à une origine exacte, journaux d'accès expurgés de ses paramètres.
+
+Utiliser Graph calendarView pour supporter Outlook personnel et professionnel ; getSchedule refuse les comptes personnels selon la documentation officielle. Plafonner pagination et timeouts. Toute erreur conserve le cache mais le rend inutilisable pour annoncer des disponibilités. Sans créneaux personnels explicites, fenêtre produit 18 h-23 h à Paris ; ce choix est affiché. Lecture fraîche requise (15 min), pas d'appel fournisseur caché à chaque rendu d'écran.
+
+Chaque version du programme et chaque ensemble de connexions exigent deux confirmations. Pas d'invités externes. Événements du catalogue fictif bloqués par défaut ; double activation serveur pour écrire une DÉMO dans un compte de test. Réessayer seulement les comptes non synchronisés. Invalider le cache de disponibilités après tentative d'écriture, même en cas de résultat incertain. La déconnexion ne supprime rien chez le fournisseur.
+
+Séparer le consentement aux propositions et celui à OpenAI. H conserve une déclaration d'humeur explicite dans la mémoire existante avec sa visibilité d'origine. G ignore le privé, les signaux périmés et les humeurs des narrateurs importés. Son analyse OpenAI facultative réutilise le budget existant, seulement sur des extraits déjà autorisés. Le retrait de consentement efface le résultat d'humeur mis en cache, conserve son horodatage de limitation ; l'effacement du profil supprime aussi cet horodatage.
+
+Scheduler interne opt-in, un worker, verrou local et bail SQLite. Démo manuelle : seul le délai de sept jours est ignoré ; jamais les consentements et disponibilités. Le bouton historique d'opportunité utilise aussi la chaîne réelle dès qu'un agenda ou un consentement proactif existe. Le bonus événement pertinent reste nul tant que E travaille sur le catalogue fictif. Apple : documentation actuelle plus nuancée que « aucun OAuth », autorisation par compte pour certaines apps compatibles ; pas de connecteur CalDAV ou de connexion affirmée sans parcours validé. Aucun service de push tiers ajouté.
+
+
+## Décisions du deck, 26 septembre 2026
+
+Réutiliser les modèles E, les créneaux A, les filtres C, la mémoire B et v2_plans ; étendre PlanningService sans remplacer le planner historique. Préparer toutes les combinaisons faisables de taille exacte, bornées à cent candidats, puis diversifier. Ne pas dupliquer un programme ou relâcher un refus pour afficher artificiellement trois cartes. Les demandes explicitement ordonnées (« puis ») conservent cet ordre ; une cuisine reconnue est exigée sur l'étape restaurant.
+
+La méthode Pipelex appelle le même calcul Python via PipeFunc. Pas de PipeLLM pour réévaluer des goûts déjà normalisés dans B/C, afin de préserver les consentements et le budget. Le backend local reste la référence et contrôle l'identité de la sortie Pipelex. Le runtime optionnel n'est pas installé/testé en réel. Les labels viennent des catégories retenues ; les explications LLM restent derrière le drapeau existant.
+
+Un pool sauvegardé n'est pas une disponibilité éternelle : expiration 24 h liée à la recherche d'origine, refus des snapshots dont les champs de planification ont changé, vérification des règles actuelles. Le remplacement doit rester entre les voisins initiaux. Composer crée un nouveau brouillon ; swiper à droite n'accepte rien. Aucun mot du profil privé dans les explications.
+
+Conserver le front sans framework ; écrire le deck en .mts strict et fournir le .mjs compilé au navigateur. Types générés depuis Pydantic pour les nouvelles routes. Démonstration isolée avec trois programmes fictifs, puis test intégré API/SQLite ; distinguer ces preuves d'une validation de données réelles ou d'un test sur téléphone physique.
+
+## Décisions, cartes individuelles, 27 septembre 2026
+
+- Réutiliser E et sa SQLite, exposer une projection des candidats déjà filtrés plutôt
+  que limiter les cartes aux seules étapes des trois programmes.
+- Conserver l'ancien composant DateProposalDeck comme module de compatibilité testé ;
+  un seul composant est monté dans Ask : ActivitySwipeDeck. Aucun deuxième écran.
+- Garder/passer n'est pas une déclaration de goût ; aucun fait mémoire n'est créé.
+- Aucun plafond de trois sélections dans le navigateur. Le contrat borné à 50 cartes
+  évite les requêtes démesurées ; les conflits sont signalés puis vérifiés au serveur.
+- TypeScript strict et DOM natif, sans ajouter React ni bibliothèque de gestes au
+  projet existant. Georgia pour les noms ; illustrations SVG locales sans photo fictive.
+- Le mode standard est explicite dans les requêtes, distinct d'un consentement cloud.
+  Les marques et paramètres de moteur restent dans les outils/documentation techniques.
+- Conserver les confirmations de fichier, de visibilité mémoire et de calendrier.
+- Corriger la lecture UTF-8 du catalogue synthétique. Réparer uniquement les titres
+  présentant exactement le mauvais décodage cp1252 connu, jamais les titres personnalisés.

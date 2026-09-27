@@ -62,7 +62,7 @@ async function render(){
   if(draft?.video){
     const input=form.querySelector('[name=video]');input.required=false;input.disabled=true;
     const info=document.createElement('p');info.textContent='Fichier reçu : '+draft.video.name+' ('+(draft.video.size/1024/1024).toFixed(1)+' Mio).';input.after(info);
-    status.textContent='Vidéo reçue. Vérifiez la légende et autorisez le traitement.';
+    status.textContent='Vidéo reçue. Vérifiez la légende puis ajoutez-la à vos inspirations.';
   }else{
     status.textContent=id?'Lien ou texte reçu, sans fichier vidéo. Ajoutez la vidéo obtenue avec autorisation ou gardez une piste à confirmer.':'Ajoutez votre vidéo, ou collez un lien avec une description.';
     const note=document.createElement('button');note.type='button';note.className='quiet spaced';note.textContent='Enregistrer le lien ou la description comme piste';

@@ -1,0 +1,21 @@
+domain = "date_scoring"
+description = "Classement local de candidats déjà filtrés par C et les consentements de B"
+main_pipe = "score_candidates"
+
+# JSON validated by score_candidates in Python; no undefined CoupleProfile/Constraints concept.
+# The shared Python function applies taste .35, availability .20, distance .15,
+# budget .10, novelty .10, popularity .10. No model may override hard exclusions.
+# Taste already comes from the existing consent-filtered C/B scores; no extra paid LLM.
+[pipe.compute_final_score]
+type = "PipeFunc"
+description = "Applique les six pondérations via la même fonction que le backend local"
+inputs = { score_request = "Text" }
+output = "Text"
+function_name = "chandelle_date_score"
+
+[pipe.score_candidates]
+type = "PipeSequence"
+description = "Exécute le scoring déterministe dans le runtime Pipelex local"
+inputs = { score_request = "Text" }
+output = "Text"
+steps = [{ pipe = "compute_final_score", result = "final_scores" }]

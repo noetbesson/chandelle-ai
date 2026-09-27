@@ -49,7 +49,7 @@ def install_reel_routes(app, db, memory, ready):
         try:
             if received.share_with_couple:
                 raise ReelError('CONSENT','Confirmez les goûts dans Inspirations avant de les partager.',422)
-            config=replace(settings,allow_live=settings.allow_live and received.cloud_consent)
+            config=replace(settings,allow_live=settings.allow_live and (received.cloud_consent or received.processing=='standard'))
             backend=select_backend(config)
             config=replace(config,normalization_backend=backend)
             existing=service.reserve(received,member,backend)

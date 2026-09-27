@@ -1,4 +1,4 @@
-"""Local HTTP composition for the offline demo."""
+"""Single local HTTP application, authenticated web discovery and memory."""
 
 from pathlib import Path
 
@@ -18,8 +18,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     memory = MemoryService(SQLiteMemoryRepository(db_path) if db_path is not None
                            else SQLiteMemoryRepository())
     service = ConversationService(DatePipeline(memory, DiscoveryService(LocalActivityRepository())))
-    proactive = ProactiveService(service.pipeline)
-    app = FastAPI(title="Chandelle Offline Demo", version="0.1.0")
+    app = FastAPI(title="Chandelle", version="0.1.0")
     app.state.conversation = service
     static_dir = Path(__file__).with_name("static")
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -38,10 +37,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/v1/date/request", response_model=PlanResult)
     def request_date(request: DateRequest) -> PlanResult:
-        try:
-            return service.request_date(request)
-        except PlanningFailure as exc:
-            raise HTTPException(status_code=422, detail={"run_id": exc.run_id, "error": str(exc)}) from exc
+        raise HTTPException(410,"Utilisez la recherche authentifiée /api/v2/dates/search.")
 
     @app.post("/v1/date/feedback", response_model=CoupleProfile)
     def feedback(request: FeedbackRequest) -> CoupleProfile:
@@ -67,10 +63,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/v1/proactive/check", response_model=OpportunityDecision)
     def proactive_check(request: ProactiveCheck) -> OpportunityDecision:
-        try:
-            return proactive.check(request)
-        except PlanningFailure as exc:
-            raise HTTPException(status_code=422, detail={"run_id": exc.run_id, "error": str(exc)}) from exc
+        raise HTTPException(410,"Utilisez la recherche authentifiée /api/v2/dates/search.")
 
     from backend.api.routes import install_routes
     from fastapi.exceptions import RequestValidationError

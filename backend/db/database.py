@@ -38,6 +38,18 @@ INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('reels_memory',1);
 CREATE TABLE IF NOT EXISTS v2_ai_calls(id TEXT PRIMARY KEY,created_at TEXT NOT NULL,kind TEXT NOT NULL,reserve_micro_usd INTEGER NOT NULL,outcome TEXT NOT NULL,usage TEXT);
 CREATE TABLE IF NOT EXISTS v2_web_cache(owner_id TEXT NOT NULL,cache_key TEXT NOT NULL,payload TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(owner_id,cache_key));
 INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('ai_discovery',1);
+CREATE TABLE IF NOT EXISTS v2_calendar_connections(user_id TEXT PRIMARY KEY REFERENCES v2_users(id),provider TEXT NOT NULL,credentials TEXT NOT NULL,generation TEXT NOT NULL,status TEXT NOT NULL,busy TEXT,range_start TEXT,range_end TEXT,synced_at TEXT,error TEXT);
+CREATE TABLE IF NOT EXISTS v2_calendar_oauth(state_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES v2_users(id),provider TEXT NOT NULL,payload TEXT NOT NULL,expires_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS v2_calendar_approvals(plan_id TEXT NOT NULL,user_id TEXT NOT NULL,revision TEXT NOT NULL,operation TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(plan_id,user_id));
+CREATE TABLE IF NOT EXISTS v2_calendar_events(plan_id TEXT NOT NULL,user_id TEXT NOT NULL,generation TEXT NOT NULL,event_id TEXT,revision TEXT,status TEXT NOT NULL,error TEXT,PRIMARY KEY(plan_id,user_id));
+CREATE TABLE IF NOT EXISTS v2_notifications(id TEXT PRIMARY KEY,couple_id TEXT NOT NULL,suggestion_id TEXT NOT NULL UNIQUE,plan_id TEXT NOT NULL,score REAL NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS v2_notification_reads(notification_id TEXT NOT NULL,user_id TEXT NOT NULL,PRIMARY KEY(notification_id,user_id));
+CREATE TABLE IF NOT EXISTS v2_proactive_settings(user_id TEXT PRIMARY KEY,enabled INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS v2_mood_cloud(user_id TEXT PRIMARY KEY,enabled INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS v2_mood_cache(user_id TEXT PRIMARY KEY,cache_key TEXT NOT NULL,payload TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS v2_proactive_runs(couple_id TEXT PRIMARY KEY,last_run TEXT,lease_until TEXT,outcome TEXT);
+INSERT OR IGNORE INTO v2_extensions(name,version) VALUES('calendar_proactive',1);
+
 
 '''
 

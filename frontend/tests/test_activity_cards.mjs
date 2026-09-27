@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {ActivityState} from '../app/ActivitySwipeDeck.mjs';
+import {ActivityCard,safeImage} from '../app/ActivityCard.mjs';
+import {selectionWarnings,travelMinutes,MyDateBuilder} from '../app/MyDateBuilder.mjs';
+import {mockActivities,mockActivitySearch} from './activity-data.mjs';
+const s=new ActivityState(mockActivities);assert.equal(s.current.id,mockActivities[0].id);
+s.keep(s.current.id);s.pass(s.current.id);assert.equal(s.kept.size,1);assert.equal(s.passed.size,1);
+s.overview=true;s.overview=false;assert.equal(s.kept.size,1);
+s.keep(mockActivities[1].id);assert.equal(s.passed.size,0);
+for(const a of mockActivities.slice(2,6))s.keep(a.id);
+assert.equal(s.kept.size,6,'Selection is not capped at three');
+s.remove(mockActivities[0].id);assert.equal(s.current.id,mockActivities[0].id);
+assert.ok(selectionWarnings([mockActivities[0],mockActivities[1]],mockActivitySearch).some(s=>s.includes('chevauchent')));
+assert.equal(selectionWarnings([mockActivities[0],mockActivities[3]],mockActivitySearch).length,0);
+assert.ok(selectionWarnings([mockActivities[0],{...mockActivities[3],location:{lat:49,lng:2.3}}],mockActivitySearch).some(s=>s.includes('min')));
+assert.equal(travelMinutes(mockActivities[0],mockActivities[0]),5);
+const unsafe={...mockActivities[0],name:'<script>bad</script>',why:'<img onerror=bad()>',image_url:'javascript:bad()'};
+const html=ActivityCard(unsafe);assert.doesNotMatch(html,/<script>|<img onerror|src="javascript/);assert.match(html,/Consulter la source/);
+assert.equal(safeImage('https://user:secret@site.test/a'),null);
+assert.doesNotMatch(MyDateBuilder([],mockActivitySearch,false,false,false),/OpenAI|ChatGPT/);
+assert.throws(()=>new ActivityState([mockActivities[0],mockActivities[0]]),/invalide/);
+console.log('Activity cards PASS: individual keep/pass, shared view state, >3 selections, time/travel warnings, five-minute margin, escaping and synthetic fixtures.');
+
+assert.doesNotMatch(ActivityCard({...mockActivities[0],start:null,end:null,schedule_status:"published"}),/Dates publiées/);

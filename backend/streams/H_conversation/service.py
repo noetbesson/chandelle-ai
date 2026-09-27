@@ -64,7 +64,7 @@ def parse_request(text):
 class Conversation(BaseModel):
     text: str=Field(min_length=1,max_length=4000)
     privacy_scope: Privacy='PRIVATE'
-    mode: Literal['offline','openai']='offline'
+    mode: Literal['offline','openai','auto']='offline'
 
 
 class ConversationService:
@@ -79,6 +79,13 @@ class ConversationService:
             c.execute('INSERT INTO v2_messages VALUES(?,?,?,?,?)',(uuid4().hex,sid,member['id'],body.text,now()))
         facts=[]
         existing=self.memory.list_facts(member['couple_id'],'PERSON',member['id'],member['id'])
+        # A literal self declaration keeps the user's chosen visibility and real timestamp.
+        from backend.streams.G_proactive.mood_rules import explicit_mood
+        mood=explicit_mood(body.text)
+        if mood:
+            facts.append(self.memory.ingest(member['couple_id'],'PERSON',member['id'],member['id'],
+                'experience','discussion:mood',{'text':'Je suis '+mood,'signal_at':now(),'horizon':'temporary'},
+                body.privacy_scope,'conversation',confidence=.8))
         for f in extraction.facts:
             if f.confidence < .7:continue
             canonical, negative=interests(f.value)

@@ -1,5 +1,44 @@
 # V2 contracts (initial)
 
+## Profondeur de recherche, 27 septembre 2026
+
+La trace `web_search` ajoute `tool_calls`, `search_calls`, `source_count`,
+`unknown_tool_actions` et `tool_limit`. Ces nombres ne sont pas le nombre de cartes.
+Ils sont nulls pour les anciennes réponses sans mesures. Le cache change de version
+et inclut les plafonds d'appels et de fiches. Valeurs par défaut 4 et 16, aucun
+nouveau fournisseur ni pipeline. Les plafonds financiers restent des réservations.
+
+
+## Recherche commune, contrat actualisé au 27 septembre 2026
+
+`POST /api/v2/dates/search` et `/api/dates/search` utilisent la même fonction E.
+Les alias `/api/v2/recommendations/query` et `/api/v2/discovery/web` délèguent aussi à
+ce parcours ; ils ne constituent plus des collecteurs séparés. Les routes de lecture
+`/activities` et `/activities/real` restent compatibles mais renvoient une liste vide
+et invitent à lancer une recherche. Les anciennes recherches V1 renvoient HTTP 410.
+
+Réponse : `search_id`, `activities`, `proposals`, `status`, `empty_reason`, `message`,
+`trace`, `warnings`, `sources`, `searched_at`, `cached`, limites et contraintes de composition.
+Une activité porte son URL source, la date de consultation, son type (lieu, événement,
+séance, itinéraire, créneau), `schedule_status`, `availability` et `composable`.
+Prix, localisation et heures sont nullables. Un champ inconnu ne vaut pas zéro.
+Les citations attestent une référence, pas une validation indépendante de chaque fait.
+
+`trace` : empreinte de requête sans texte brut ; mode/fallback et catégories d'analyse ;
+volume brut web ; validation schéma/citations ; avant/après de chaque filtre, nombre
+retiré/inconnu ; champs nécessaires à la composition et nombre de combinaisons.
+`GET /api/v2/runs/{search_id}` est limité au propriétaire même en cas d'échec avant
+création du pool. Les instantanés privés ne sont pas transmis au partenaire.
+
+`v2_web_cache` : cache privé six heures, par propriétaire et critères. `v2_activities` :
+cache de faits publics, upsert sur identifiant déterministe URL + nom + date pour les
+événements datés. Ce cache n'est jamais parcouru comme catalogue de secours. Remplacer
+et composer revalident uniquement les identifiants du pool de recherche sauvegardé.
+Une panne n'efface pas les faits ; la recherche en échec ne les affiche pas à la place.
+Les anciens enregistrements explicitement `demo=true` sont retirés au démarrage ;
+les profils, faits de mémoire et historiques ne sont pas effacés.
+
+
 Database: `backend.db.database.Database(path)`, `.connect()` sqlite3 Row connection. All root-owned tables are documented in the Stockage SQL section below. Service constructors accept Database.
 
 B module `backend.streams.B_memory.service`: `MemoryServiceV2(db)`; `ingest(couple_id, scope, entity_id, owner_id, category, key, value, privacy_scope='PRIVATE', source='manual', tags=None, idempotency_key=None, supersedes=None)` returns fact dict. `list_facts(couple_id, scope, entity_id, viewer_id)` owner/shared filtered. `search(couple_id, scope, entity_id, viewer_id, query, limit=20)` ranked dicts. `update(fact_id, viewer_id, **changes)`, `delete(fact_id, viewer_id)`, `share(fact_id, viewer_id, privacy_scope)`; `profile(couple_id,scope,entity_id,viewer_id)`; `planning_context(couple_id)` returns {person_a: profile,person_b: profile,couple: profile}; profiles have interests/dislikes/budget/novelty/constraints and no private facts in planning. `derive_couple(couple_id)` safe public profile. `export_entity(...)`, `delete_entity(...)`. Exceptions ValueError/PermissionError/KeyError mapped centrally.
@@ -85,6 +124,16 @@ For full personal-data erasure rather than memory-scope erasure, `/users/me/data
 
 Routes, payloads et schéma SQL inchangés. Les imports Python suivent désormais `backend.streams.<lettre>_<nom>.service`. La carte complète et les responsabilités transverses sont dans ARCHITECTURE.md. Les types E restent dans E_orchestrator/models.py.
 
+## Extension calendar_proactive=1 (26 septembre 2026)
+
+Routes ajoutées dans la même API et authentifiées par X-Member-Token : GET `/api/calendar/connect/{google|outlook}` (ou `/api/v2/calendar/connect/...`, option `format=json` pour le front), callback GET `/api/calendar/callback/{provider}` public mais lié à state/PKCE/cookie ; GET `/api/v2/calendar/status`, POST `/api/v2/calendar/sync`, DELETE `/api/v2/calendar/connection`. Une origine OAuth différente de celle du navigateur est refusée. Aucun token fournisseur dans une réponse.
+
+GET `/api/v2/calendar/plans/{pid}` retourne l'aperçu, la revision SHA-256, le nombre d'accords et le résultat de son propre calendrier. POST `.../{pid}/confirm` accepte seulement `{revision}`. Les deux membres doivent confirmer la même révision ; le statut de programme doit être accepted ou cancelled. Une reprise conserve les succès individuels. L'export .ics existant reste inchangé. TimeSlot utilise des instants avec fuseau ; sa vue publique inclut duration_minutes. Les anciennes heures sans fuseau des parcours manuels restent interprétées par A en Europe/Paris avec contrôle DST.
+
+GET/PUT `/api/v2/proactive/settings`, PUT `/api/v2/proactive/mood-consent` (`{enabled:bool}`), POST `/api/proactive/trigger/{couple_id}` et alias V2 (`{demo:false}` par défaut). Démo true réservée au serveur CHANDELLE_DEV. GET `/api/v2/notifications`, POST `/api/v2/notifications/{id}/read`. Les identifiants étrangers ne donnent accès à aucune donnée ; ni source d'humeur privée ni identifiant d'événement fournisseur n'est rendu au partenaire.
+
+Tables ajoutées : v2_calendar_connections, v2_calendar_oauth, v2_calendar_approvals, v2_calendar_events, v2_notifications, v2_notification_reads, v2_proactive_settings, v2_proactive_runs, v2_mood_cloud, v2_mood_cache. Aucune seconde base. Suppression des accès et consentements lors de l'effacement personnel. Le scheduler n'est actif qu'avec PROACTIVE_SCHEDULER_ENABLED=1 et un serveur vivant ; son état réel est exposé dans proactive/settings. Cette extension ne garantit pas la vérification des activités issues du catalogue de démo ni une réplication des éditions distantes dans les DatePlans.
+
 ## Entrée vidéo mémoire
 
 `backend/api/reels.py` est installé par `install_routes`, sans nouveau serveur.
@@ -159,3 +208,43 @@ Le smoke historique scripts/live_openai_smoke.py exige toujours RUN_LIVE_OPENAI_
 ## Cache Discovery consultable
 
 `GET /api/v2/activities/real` requiert les deux entretiens terminés et retourne `{items:[Activity...],total}` depuis `backend/streams/C_discovery/data/activities.json`. Les Activity sont revalidées, sans appel réseau, et ne sont pas ajoutées à `v2_activities` ni aux candidats de planification. Le frontend les montre dans une section distincte avec lien vers `website`. Prix, horaires, coordonnées et score inconnus restent `null`. Un cache absent donne une liste vide.
+
+
+## Ask web : extension compatible
+
+WebQuery accepte un objet plan optionnel : budget (0..10000, total couple), date ISO, time ISO, activity_count (1..3), radius_km (1..200), categories (10 maximum). Ces contraintes entrent dans la clé de cache et le prompt ; la réponse contient requested_plan pour afficher les critères et leurs limites. Aucun changement aux contrats /recommendations/query ni aux programmes persistés. Le consentement est obligatoire pour les modes OpenAI dans Ask. use_shared_interests reste opt-in et ne transmet que les thèmes publics autorisés. Une sélection du catalogue se compose en mode local.
+
+
+## Deck E, 26 septembre 2026
+
+`POST /api/dates/search` reçoit `{constraints: SearchConstraints, couple_id?, cloud_consent}` et renvoie `{search_id, proposals: DeckPlan[], warnings, composition}`. Alias identique `/api/v2/dates/search`. Maximum et cible : trois programmes distincts ; moins seulement si le pool ne comporte pas trois combinaisons faisables, avec raison explicite. Zéro combinaison donne `proposals:[]`. `constraints` conserve Query et ajoute `max_total_duration_minutes` (15..1440, défaut 360), `max_travel_time_minutes` (0..180, défaut 30). Nombre exact d'étapes 1..3. Les catégories sont bornées au vocabulaire C. Les deux entretiens et le jeton du membre sont obligatoires ; le couple du corps ne peut pas changer l'identité.
+
+`POST /api/dates/{pid}/replace-activity` reçoit `{activity_id_to_replace,new_constraints?}` et renvoie le programme mis à jour avec le même ID. Édition uniquement draft/proposed et activité non verrouillée. Réutilise le pool enregistré, conserve les autres étapes et leur ordre. Aucun appel discovery fournisseur. Les règles récentes de B/A/C peuvent invalider un ancien choix : rejet explicite, aucune écriture partielle.
+
+`POST /api/dates/compose` reçoit `{selected_activity_ids:[1..3 IDs distincts],search_id?}`. Le pool doit provenir d'une recherche du membre connecté dans le même couple. Sans search_id, utilise sa dernière recherche ; le front transmet toujours l'ID. Tri chronologique et vérification complète, puis nouveau programme draft. Ni acceptation ni écriture calendrier implicitement.
+
+`DeckPlan` étend DatePlan : `id`, `status`, `diversity_label`, `duration_minutes`, `search_id`, `kept_ids`, `timeline`, provenance des activités. Le contrat Python génère `frontend/contracts/date-deck.schema.json` et `frontend/src/date-contract.mts` ; `scripts/generate_date_contract.py --check` détecte une divergence. Les champs `_deck`, `_e_plan`, `_profile`, `_candidates` ne sortent jamais de `PlanningService.public`. Aucune nouvelle table ; les anciennes routes et consommateurs sont conservés.
+
+## Cartes individuelles et traitement produit, 27 septembre 2026
+
+`/api/dates/search` et son alias V2 ajoutent une projection ActivityChoice publique :
+id, name, category, start/end datés avec fuseau, price_per_person, location, address,
+tags, why, demo, image_url, rating et source. Aucune valeur n'est tirée d'une note
+privée. Au plus 50 cartes, cinq par catégorie sauf activités déjà proposées.
+`proposals` reste compatible. Ajouts : budget_cap, max_total_duration_minutes,
+max_travel_time_minutes, requested_steps.
+
+`/api/dates/compose` accepte 1..50 identifiants distincts d'une même recherche.
+Les sélections fixées sont vérifiées en temps linéaire, sans étendre la génération
+combinatoire des trois programmes. Un lot sans combinaison complète est conservé
+sous `_activity_search` dans le payload existant `v2_runs`. Ce champ n'est jamais
+renvoyé, et le GET du run vérifie son propriétaire. Les anciennes recherches avec
+`_deck` dans `v2_plans` restent utilisables ; même durée de vie de 24 h.
+
+Query/Conversation acceptent `auto` en plus de offline/openai. `auto` suit la
+configuration du serveur, avec repli existant, sans enregistrer d'accord fictif.
+WebQuery et le formulaire multipart Reels acceptent `processing=standard` (sinon
+legacy). Les anciens contrats cloud_consent restent inchangés ; aucun client legacy
+n'est activé rétroactivement. Les quotas et l'autorisation d'utiliser un fichier
+restent vérifiés. Le traitement d'humeur historique n'est pas activé par la suppression
+de son ancien bouton : les autorisations enregistrées et la configuration demeurent.

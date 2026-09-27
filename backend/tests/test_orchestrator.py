@@ -132,16 +132,13 @@ def test_adapter_alternate_profile_fields():
     assert profile.shared_interests == ["jazz"]
 
 
-def test_api_local_repository_and_run_status():
-    client = TestClient(app)
-    payload = request([]).model_dump(mode="json")
-    payload.pop("candidate_activities")
-    response = client.post("/plans", json=payload)
-    assert response.status_code == 200, response.text
-    result = response.json()
-    assert 1 <= len(result["plans"]) <= 3
-    assert client.get(f"/runs/{result['run_id']}").json()["status"] == "completed"
-    assert client.get("/runs/missing").status_code == 404
+def test_api_no_longer_loads_an_implicit_local_catalogue():
+    client=TestClient(app)
+    payload=request([]).model_dump(mode='json');payload.pop('candidate_activities')
+    response=client.post('/plans',json=payload)
+    assert response.status_code==422
+    run_id=response.json()['detail']['run_id']
+    assert client.get(f'/runs/{run_id}').json()['status']=='failed'
 
 
 def test_api_failure_records_status():

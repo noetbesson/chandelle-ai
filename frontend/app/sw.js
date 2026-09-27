@@ -1,5 +1,5 @@
 import {draftFromForm,saveDraft,MAX_VIDEO} from '/v2-static/share-store.mjs';
-const CACHE='chandelle-public-v1';
+const CACHE='chandelle-public-v3';
 const ASSETS=['/v2-static/style.css','/v2-static/icons/chandelle-192.png','/v2-static/icons/chandelle-512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('chandelle-public-')&&key!==CACHE)await caches.delete(key);await self.clients.claim();})());});

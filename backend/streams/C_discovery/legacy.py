@@ -31,7 +31,7 @@ class DiscoveryConstraints(BaseModel):
 
 
 
-DEFAULT_FIXTURE = Path(__file__).with_name("paris_activities.json")
+DEFAULT_FIXTURE = None
 
 
 class ActivityRepository(Protocol):
@@ -39,10 +39,11 @@ class ActivityRepository(Protocol):
 
 
 class LocalActivityRepository:
-    def __init__(self, path: Path = DEFAULT_FIXTURE):
-        self.path = Path(path)
+    def __init__(self, path: Path | None = None):
+        self.path = Path(path) if path is not None else None
 
     def list_activities(self) -> list[ActivityListing]:
+        if self.path is None:return []
         listings = [ActivityListing.model_validate(item)
                     for item in json.loads(self.path.read_text(encoding="utf-8"))]
         ids = [item.candidate.id for item in listings]

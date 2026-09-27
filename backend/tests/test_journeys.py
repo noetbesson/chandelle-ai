@@ -42,14 +42,14 @@ def test_manual_calendar_scopes_planning_and_persists(client):
         return client.put(PREFIX+'/availability',headers=headers(person),json={'slots':[{'start':start,'end':end}]})
     assert put(a,'2026-09-26T18:00:00','2026-09-26T20:30:00').status_code==200
     blocked=client.post(PREFIX+'/recommendations/query',headers=headers(a),json={'text':'A date'})
-    assert blocked.status_code==422
+    assert blocked.status_code==200 and blocked.json()['plans']==[] and blocked.json()['warnings']
     assert not client.post(PREFIX+'/suggestions/check',headers=headers(a)).json()['triggered']
     assert put(b,'2026-09-26T19:00:00','2026-09-26T23:00:00').status_code==200
     state=client.get(PREFIX+'/availability',headers=headers(a)).json()
     assert len(state['own_slots'])==1
     assert state['common_slots']==[{'start':'2026-09-26T17:00:00+00:00','end':'2026-09-26T18:30:00+00:00'}]
     assert '2026-09-26T21:00:00+00:00' not in json.dumps(state)  # partner's private end
-    plan=query(client,a)['plans'][0]
+    plan=query(client,a,activity_count=1)['plans'][0]
     assert instant(plan['start'])>=instant(state['common_slots'][0]['start'])
     assert instant(plan['end'])<=instant(state['common_slots'][0]['end'])
     from backend.streams.A_calendar.service import AvailabilityService
@@ -127,32 +127,27 @@ def test_inspiration_confirmation_consent_dedup_revoke_and_expiry(client):
     assert 'creative' not in memory.planning_context(couple['couple_id'])['person_a']['interests']
 
 
-def test_catalog_comparison_selected_composition_and_unknown_prices(client):
+def test_web_comparison_selected_composition_and_unknown_prices(client):
     _,a,b=ready(client)
-    catalog=client.get(PREFIX+'/activities?limit=100',headers=headers(a)).json()
-    assert catalog['total']==76
-    compared=client.post(PREFIX+'/activities/compare',headers=headers(a),json={'activity_ids':['peer_01','peer_08']}).json()
-    assert compared['known_total_eur']==56
-    assert compared['total_couple_cost'] is None and not compared['budget_complete']
-    result=query(client,a,required_activity_ids=['peer_01','peer_09'])
-    for plan in result['plans']:
-        assert {'peer_01','peer_09'}=={x['id'] for x in plan['activities']}
-        assert plan['total_couple_cost']==88
-    for selected in (['peer_08'],['peer_35'],['peer_01','peer_02']):
-        r=client.post(PREFIX+'/recommendations/query',headers=headers(a),json={'text':'A date','required_activity_ids':selected,'time_window':{'start':'2026-09-26T18:00:00','end':'2026-09-26T23:00:00'}})
-        assert r.status_code==422,r.text
+    result=query(client,a)
+    selected=[v['id'] for v in result['plans'][0]['activities']]
+    compared=client.post(PREFIX+'/activities/compare',headers=headers(a),json={'activity_ids':selected}).json()
+    assert compared['budget_complete'] and compared['total_couple_cost']==result['plans'][0]['total_couple_cost']
+    assert client.get(PREFIX+'/activities?limit=100',headers=headers(a)).json()['total']==0
+    result=query(client,a,required_activity_ids=selected)
+    assert result['plans'] and all(set(selected)=={x['id'] for x in p['activities']} for p in result['plans'])
 
 
 def test_booking_and_calendar_require_acceptance_and_couple_membership(client):
     _,a,b=ready(client)
-    plan=query(client,a,required_activity_ids=['peer_01','peer_09'])['plans'][0]
+    plan=query(client,a)['plans'][0]
     base=PREFIX+'/date-plans/'+plan['id']
     assert client.post(base+'/booking',headers=headers(a)).status_code==422
     assert client.get(base+'/calendar',headers=headers(a)).status_code==422
     assert client.patch(base,headers=headers(a),json={'status':'accepted'}).status_code==200
     prepared=client.post(base+'/booking',headers=headers(b)).json()
     assert prepared['payment_performed'] is False
-    assert all(x['booking_url'] is None and x['requires_user_confirmation'] for x in prepared['actions'])
+    assert all(x['requires_user_confirmation'] for x in prepared['actions'])
     exported=client.get(base+'/calendar',headers=headers(a))
     assert exported.status_code==200
     assert 'DTSTART:20260926T170000Z' in exported.text

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from backend.api.reels import install_reel_routes
+from backend.integrations.calendar.store import calendar_locked
 from backend.db import Database
 from backend.streams.B_memory.onboarding import OnboardingService, CoupleCreate, Answer
 from backend.streams.B_memory.service import Privacy
@@ -16,12 +17,11 @@ from backend.streams.E_orchestrator.service import PlanningService, Query, Revie
 from backend.streams.A_calendar.service import AvailabilityService, AvailabilityInput
 from backend.streams.F_booking.service import prepare, calendar
 from backend.streams.D_connectors.service import InspirationService, SignalImport, SignalConfirm
-from backend.streams.C_discovery.service import seed_peer_catalog
 from backend.integrations.openai import OpenAIAdapter
 from backend.integrations.ai_budget import AIBudget
 from backend.streams.C_discovery.web import WebDiscovery, WebQuery
 from backend.streams.B_memory.service import MemoryServiceV2
-from backend.streams.C_discovery.service import CatalogService, cached_real_activities
+from backend.streams.C_discovery.service import CatalogService
 from backend.streams.G_proactive.service import SuggestionService
 from backend.streams.H_conversation.service import Conversation, ConversationService
 
@@ -57,13 +57,14 @@ def install_routes(app,db_path):
     db=Database(db_path)
     memory=MemoryServiceV2(db)
     onboarding=OnboardingService(db,memory)
-    catalog=CatalogService(db,memory);catalog.seed();seed_peer_catalog(db)
+    catalog=CatalogService(db,memory);catalog.remove_synthetic()
     availability=AvailabilityService(db)
     inspirations=InspirationService(memory)
     planning=PlanningService(db,memory,catalog)
     suggestions=SuggestionService(db,planning)
     conversations=ConversationService(db,memory)
     web_discovery=WebDiscovery(db,memory)
+    planning.web=web_discovery
     app.state.v2={'db':db,'memory':memory,'onboarding':onboarding,'catalog':catalog,'planning':planning,'suggestions':suggestions,'availability':availability,'inspirations':inspirations}
     router=APIRouter(prefix='/api/v2')
 
@@ -75,6 +76,10 @@ def install_routes(app,db_path):
         return member
 
     reels=install_reel_routes(app,db,memory,ready)
+    from backend.api.calendar import install_calendar_routes
+    calendars=install_calendar_routes(app,db,planning,suggestions,ready)
+    from backend.api.dates import install_date_routes
+    install_date_routes(app,planning,ready)
 
     def own_couple(cid,member):
         if cid!=member['couple_id']:raise PermissionError('Different couple')
@@ -91,7 +96,7 @@ def install_routes(app,db_path):
     def health():return {'status':'ok','version':'2.0','schema_version':1,'extensions':{'peer_merge':1},'offline':True}
 
     @router.get('/integrations')
-    def integrations():return {'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_demo','timezone':'Europe/Paris','ics_export':True},'catalog':{'mode':'internal_demo'},'schema_version':1,'extensions':{'peer_merge':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
+    def integrations():return {'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_connected','timezone':'Europe/Paris','ics_export':True,'providers':{p:calendars['auth'].configured(p) for p in ('google','outlook')},'apple_caldav':False,'scheduler_running':bool(calendars['scheduler'].scheduler and calendars['scheduler'].scheduler.running)},'catalog':{'mode':'web_search_only'},'schema_version':1,'extensions':{'peer_merge':1,'calendar_proactive':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
 
     @router.post('/onboarding/couples')
     def create(body:CoupleCreate):return onboarding.create(body)
@@ -177,25 +182,23 @@ def install_routes(app,db_path):
     def ai_budget(member=Depends(ready)):return AIBudget(db).status()
 
     @router.post('/discovery/web')
-    def web_search(body:WebQuery,member=Depends(ready)):return web_discovery.search(member,body)
+    def web_search(body:WebQuery,member=Depends(ready)):
+        # Compatibility alias into the SAME search orchestrator used by Ask and Discover.
+        values={'text':body.text,'mode':'auto','use_shared_interests':body.use_shared_interests}
+        if body.plan:
+            values.update({k:v for k,v in body.plan.model_dump().items() if k in ('budget','categories','activity_count','radius_km') and v is not None})
+            if body.plan.date:
+                from datetime import datetime,timedelta
+                start=datetime.combine(body.plan.date,body.plan.time or datetime.min.time().replace(hour=18))
+                values['time_window']={'start':start,'end':start+timedelta(hours=6)}
+        result=planning.query(member['couple_id'],Query.model_validate(values),deck_options={'owner_id':member['id'],'duration':360,'travel':30})
+        return {**result,'search_id':result['run_id'],'proposals':result['plans'],'answer':result['message'],'segments':[]}
 
     @router.get('/activities')
-    def activities(query:str='',category:str|None=None,limit:int=30,offset:int=0,member=Depends(ready)):
-        result=catalog.browse(query,category,limit,offset)
-        try:windows=availability.windows(member['couple_id'])
-        except ValueError:windows=[]
-        scores={x['activity']['id']:x for window in windows for x in catalog.discover(member['couple_id'],window,limit=100)}
-        with db.connect() as c:states={r['activity_id']:r['state'] for r in c.execute('SELECT * FROM v2_activity_states WHERE user_id=?',(member['id'],))}
-        for item in result['items']:
-            score=scores.get(item['id'])
-            if score:item.update({k:score[k] for k in ('person_a_score','person_b_score','couple_score','evidence','components')})
-            item['state']=states.get(item['id'],'neutral');item['eligible']=score is not None
-        return result
-
     @router.get('/activities/real')
-    def real_activities(member=Depends(ready)):
-        items = cached_real_activities()
-        return {'items': items, 'total': len(items)}
+    def activities(query:str='',category:str|None=None,limit:int=30,offset:int=0,member=Depends(ready)):
+        # These former catalogue routes expose no alternate source. Explicit search is required.
+        return catalog.browse(query,category,limit,offset)
 
     @router.get('/activities/{aid}')
     def activity(aid:str,member=Depends(ready)):return catalog.get(aid)
@@ -205,7 +208,7 @@ def install_routes(app,db_path):
         return catalog.record_state(member['couple_id'],member['id'],aid,body.state)
 
     @router.post('/recommendations/query')
-    def recommend(body:Query,member=Depends(ready)):return planning.query(member['couple_id'],body)
+    def recommend(body:Query,member=Depends(ready)):return planning.query(member['couple_id'],body,deck_options={'owner_id':member['id'],'duration':360,'travel':30})
 
     @router.get('/availability')
     def availability_state(member=Depends(ready)):
@@ -252,9 +255,11 @@ def install_routes(app,db_path):
     def plan(pid:str,member=Depends(ready)):return planning.public(planning.get(member['couple_id'],pid,member['id']))
 
     @router.patch('/date-plans/{pid}')
+    @calendar_locked
     def change_plan(pid:str,body:PlanChange,member=Depends(ready)):return planning.change(member['couple_id'],pid,body.status,body.kept_ids)
 
     @router.post('/date-plans/{pid}/replace')
+    @calendar_locked
     def replace_plan(pid:str,body:Replacement,member=Depends(ready)):return planning.replace(member['couple_id'],pid,body.activity_id)
 
     @router.post('/date-plans/{pid}/feedback')
@@ -270,16 +275,21 @@ def install_routes(app,db_path):
     def feed(member=Depends(ready)):return suggestions.list(member['couple_id'])
 
     @router.post('/suggestions/check')
+    @calendar_locked
     def check(member=Depends(ready)):return suggestions.check(member['couple_id'])
 
     @router.post('/suggestions/{sid}/action')
+    @calendar_locked
     def suggestion_action(sid:str,body:Action,member=Depends(ready)):return suggestions.action(member['couple_id'],sid,body.action,member['id'])
 
     @router.get('/runs/{rid}')
     def run(rid:str,member=Depends(ready)):
         with db.connect() as c:r=c.execute('SELECT payload FROM v2_runs WHERE id=? AND couple_id=?',(rid,member['couple_id'])).fetchone()
         if not r:raise KeyError('Unknown run')
-        return json.loads(r[0])
+        payload=json.loads(r[0])
+        owner=payload.get('_owner_id') or payload.get('_activity_search',{}).get('_deck',{}).get('owner_id')
+        if owner and owner!=member['id']:raise PermissionError('Recherche personnelle inaccessible.')
+        return planning.public(payload)
 
     upload_dir=Path(db_path).parent/'uploads'
 
@@ -319,22 +329,28 @@ def install_routes(app,db_path):
 
     @router.post('/conversations')
     def conversation(body:Conversation,member=Depends(ready)):
-        adapter=OpenAIAdapter(enabled=body.mode=='openai' and OpenAIAdapter().enabled,db=db)
+        adapter=OpenAIAdapter(enabled=body.mode in {'openai','auto'} and OpenAIAdapter().enabled,db=db)
         return conversations.ingest(member,body,adapter)
 
     def dev():
         if os.getenv('CHANDELLE_DEV')!='1':raise HTTPException(403,'Developer mode is disabled')
 
     @router.delete('/users/me/data')
+    @calendar_locked
     def erase_person(body:Reset,member=Depends(auth)):
         if body.confirmation!='DELETE MY DATA':raise ValueError('Explicit personal erasure confirmation required')
         reels.cancel(member)
+        calendars['store'].disconnect(member['id'])
         uid,cid=member['id'],member['couple_id']
         with db.connect() as c:
             scopes=[tuple(r) for r in c.execute('SELECT DISTINCT scope,entity_id FROM v2_facts WHERE couple_id=? AND owner_id=?',(cid,uid))]
             photos=[r[0] for r in c.execute('SELECT filename FROM v2_uploads WHERE user_id=?',(uid,))]
         for scope,eid in scopes:memory.delete_entity(cid,scope,eid,uid)
         with db.connect() as c:
+            c.execute('DELETE FROM v2_proactive_settings WHERE user_id=?',(uid,))
+            c.execute('DELETE FROM v2_mood_cloud WHERE user_id=?',(uid,))
+            c.execute('DELETE FROM v2_mood_cache WHERE user_id=?',(uid,))
+            c.execute('DELETE FROM v2_notification_reads WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_web_cache WHERE owner_id=?',(uid,))
             c.execute('DELETE FROM v2_messages WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_conversations WHERE user_id=?',(uid,))
@@ -364,6 +380,7 @@ def install_routes(app,db_path):
         return result
 
     @router.post('/dev/reset')
+    @calendar_locked
     def reset(body:Reset):
         dev()
         if body.confirmation!='RESET LOCAL V2':raise ValueError('Explicit reset confirmation required')
@@ -375,6 +392,6 @@ def install_routes(app,db_path):
         if upload_dir.exists():
             for file in upload_dir.iterdir():
                 if file.is_file() and len(file.stem)==32 and all(x in '0123456789abcdef' for x in file.stem):file.unlink()
-        catalog.seed();seed_peer_catalog(db);return {'reset':True}
+        return {'reset':True}
 
     app.include_router(router)

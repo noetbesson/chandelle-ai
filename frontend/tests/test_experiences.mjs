@@ -3,6 +3,8 @@ import {configureExperiences, inspirations, availability, submitExperience, clic
 
 const calls=[];let rendered='',route='',identity='a';
 const responses={
+  '/calendar/status':{connected:false,providers:{google:false,outlook:false},window_policy:'Test'},
+  '/proactive/settings':{enabled:false,both_enabled:false,scheduler:{running:false}},
   '/inspirations':{items:[{id:'fact',privacy_scope:'PRIVATE',value:{platform:'manual',text:'<script>private</script>',proposed_tags:['jazz'],imported_at:'2026-09-26T12:00:00Z'}}]},
   '/availability':{mode:'manual',both_configured:false,own_slots:[],common_slots:[]},
   '/activities/compare':{items:[{id:'a',title:'Jazz',price_per_person:null,duration_minutes:75}],known_total_eur:0,budget_complete:false,message:'À vérifier'},
@@ -46,7 +48,7 @@ await submitExperience({id:'reel-import',values:{video,consent:'true',caption:'J
 assert.equal(calls.at(-1).path,'/reels/upload?wait=true');
 assert.equal(calls.at(-1).options.raw.get('video'),video);
 assert.equal(calls.at(-1).options.body,undefined);
-assert.match(html,/reel-import/);assert.match(html,/cloud_consent/);
+assert.match(html,/reel-import/);assert.match(html,/name="processing" value="standard"/);assert.doesNotMatch(html,/OpenAI|cloud_consent/);
 const previousCount=calls.length;
 await assert.rejects(()=>submitExperience({id:'reel-import',values:{video,consent:'false'}}),/autorisation/);
 await assert.rejects(()=>submitExperience({id:'reel-import',values:{video:{...video,size:34*1024*1024},consent:'true'}}),/32 Mio/);

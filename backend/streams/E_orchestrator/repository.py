@@ -6,10 +6,11 @@ from pathlib import Path
 from .models import CandidateActivity
 
 
-DEFAULT_DATA = Path(__file__).resolve().parents[3] / "mocks" / "E" / "activities.json"
+DEFAULT_DATA = None
 
 
-def load_candidates(path: Path = DEFAULT_DATA) -> list[CandidateActivity]:
+def load_candidates(path: Path | None = None) -> list[CandidateActivity]:
+    if path is None:return []
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, list):
         raise ValueError("Candidate repository must contain a JSON list")
