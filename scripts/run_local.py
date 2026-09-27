@@ -4,8 +4,7 @@ import getpass
 import os
 from pathlib import Path
 import sys
-
-from dotenv.parser import parse_stream
+from importlib.metadata import PackageNotFoundError, version
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = frozenset('''
@@ -15,18 +14,46 @@ OPENAI_TOTAL_RESERVE_USD OPENAI_PLAN_EXPLANATIONS
 GRADIUM_API_KEY GRADIUM_VOICE_ID GRADIUM_ENABLED GRADIUM_STT_MODEL GRADIUM_TTS_MODEL
 REELS_LIVE_ENABLED REELS_NORMALIZATION_BACKEND REELS_OPENAI_MODEL PIPELEX_API_KEY
 DISCOVERY_ENABLE_LIVE DISCOVERY_LIMIT OPENAI_DISCOVERY_MODEL PORT
+OPENAI_WEB_MAX_TOOL_CALLS OPENAI_WEB_RESULT_LIMIT CALENDAR_REDIRECT_BASE CALENDAR_TOKEN_KEY
+GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET MICROSOFT_CLIENT_ID MICROSOFT_CLIENT_SECRET MICROSOFT_TENANT_ID
+PROACTIVE_SCHEDULER_ENABLED PROACTIVE_DEMO_MODE PROACTIVE_MOOD_OPENAI CALENDAR_ALLOW_DEMO_EVENTS
+DATE_SCORING_BACKEND
 '''.split())
 SWITCHES = {'OPENAI_ENABLED', 'OPENAI_WEB_ENABLED', 'OPENAI_PLAN_EXPLANATIONS',
-            'GRADIUM_ENABLED', 'REELS_LIVE_ENABLED'}
+            'GRADIUM_ENABLED', 'REELS_LIVE_ENABLED', 'PROACTIVE_SCHEDULER_ENABLED',
+            'PROACTIVE_DEMO_MODE', 'PROACTIVE_MOOD_OPENAI', 'CALENDAR_ALLOW_DEMO_EVENTS'}
 SECRETS = ('OPENAI_API_KEY', 'GRADIUM_API_KEY', 'GRADIUM_VOICE_ID')
+
+
+REQUIREMENTS = ROOT / 'backend' / 'requirements.txt'
 
 
 class ConfigurationError(ValueError):
     pass
 
 
+def check_dependencies():
+    missing = []
+    for line in REQUIREMENTS.read_text().splitlines():
+        if not line.strip() or line.startswith('#'):
+            continue
+        name, expected = line.strip().split('==', 1)
+        try:
+            installed = version(name)
+        except PackageNotFoundError:
+            installed = None
+        if installed != expected:
+            missing.append(name + (' (absent)' if installed is None else ' (version attendue : ' + expected + ')'))
+    if missing:
+        raise ConfigurationError('Dépendances à installer ou actualiser : ' + ', '.join(missing) +
+            '\nDepuis la racine du projet, exécuter :\n'
+            'uv pip install --python .venv/bin/python -r backend/requirements.txt\n'
+            'Ou, si pip est installé : .venv/bin/python -m pip install -r backend/requirements.txt')
+
+
 def load_environment(path, inherited):
     """No shell evaluation or ${...} interpolation; exported values take priority."""
+    from dotenv.parser import parse_stream
     values = {}
     ignored = 0
     try:
@@ -81,14 +108,10 @@ def configure_voice(env):
         require_value(env, 'GRADIUM_API_KEY', 'Clé API Gradium')
         require_value(env, 'GRADIUM_VOICE_ID', 'Identifiant de voix Gradium')
     # Explicit flags, including 0, avoid repeated prompts and stay authoritative.
-    if 'OPENAI_ENABLED' not in env:
-        answer = input('Activer le dialogue OpenAI ? [o/N] ') if sys.stdin.isatty() else ''
-        env['OPENAI_ENABLED'] = '1' if answer.lower() in ('o', 'y') else '0'
+    env.setdefault('OPENAI_ENABLED', '1')
     if env['OPENAI_ENABLED'] == '1':
         require_value(env, 'OPENAI_API_KEY', 'Clé API OpenAI')
-        if 'OPENAI_WEB_ENABLED' not in env:
-            answer = input('Permettre la recherche web (consentement séparé dans Ask) ? [o/N] ') if sys.stdin.isatty() else ''
-            env['OPENAI_WEB_ENABLED'] = '1' if answer.lower() in ('o', 'y') else '0'
+        env.setdefault('OPENAI_WEB_ENABLED', '1')
 
 
 def main(argv=None):
@@ -97,6 +120,7 @@ def main(argv=None):
     parser.add_argument('--check-env', action='store_true', help='Diagnostic masqué, sans serveur ni appel API.')
     args = parser.parse_args(argv)
     try:
+        check_dependencies()
         configured_path = os.environ.get('CHANDELLE_ENV_FILE')
         path = Path(configured_path).expanduser() if configured_path else ROOT / '.env'
         if configured_path and not path.is_file():

@@ -7,10 +7,12 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 from pydantic import BaseModel, Field, model_validator
 from backend.db import encoded
-from backend.integrations.dialogue import DialogueAdapter, DialogueDecision, SearchIntent
+from backend.integrations.dialogue import DialogueAdapter, DialogueDecision, SearchIntent, GroundedReply, DialogueUnavailable
 from backend.integrations.openai import ParsedRequest
 from backend.streams.H_conversation.service import parse_request, interests, normalize
 from backend.streams.C_discovery.web import WebQuery
+from backend.streams.C_discovery.recommendations import DatabaseActivities
+from backend.streams.C_discovery.service import CatalogService, record_web
 from backend.streams.E_orchestrator.service import Query, PlanningIssue
 from backend.streams.E_orchestrator.models import TimeWindow
 
@@ -119,12 +121,36 @@ def validate_window(intent):
         raise PlanningIssue('invalid_time', 'Je n’ai pas de créneau précis et valide. Quel jour et quelles heures vous conviendraient, en heure de Paris ?') from None
 
 
+def budget_check(result):
+    items = result.get('suggestions',[])
+    return {'total_budget_for_two':result.get('intent',{}).get('budget'),
+        'known_price_count':sum(a.get('total_couple_cost') is not None for a in items),
+        'unknown_price_names':[a['name'] for a in items if a.get('total_couple_cost') is None]}
+
+
 def public_result(result):
     # Bounded grounding for the model. No raw memory or implementation snapshots.
     safe={k:result[k] for k in ('suggestions','plans','diagnostic','reply') if k in result}
+    safe['budget_check']=budget_check(result)
     if result.get('web',{}).get('status')=='completed':
-        safe['web']={'answer':result['web']['answer'][:5000],'sources':result['web']['sources'][:5],
+        retained = {a.get('website') for a in result.get('suggestions',[])}
+        safe['web']={'answer':result['web']['answer'][:5000],
+                     'sources':[s for s in result['web']['sources'] if s['url'] in retained][:5],
                      'verification':'Pistes web ; compatibilité et disponibilité non validées par le planificateur.'}
+    return safe
+
+
+def grounding(result):
+    """Only public activity facts reach the answer model, never profile scores/evidence."""
+    fields = ('id','name','title','description','category','location','website','source',
+              'price_per_person','total_couple_cost','price_level','rating','tags','start','end','unknown')
+    activities = list(result.get('suggestions', []))
+    activities += [a for plan in result.get('plans', []) for a in plan.get('activities', [])]
+    safe = {'activities': [{k: a[k] for k in fields if k in a} for a in activities[:9]],
+            'diagnostic': result.get('diagnostic'), 'fallback_reply': result['reply'],
+            'budget_check':budget_check(result)}
+    if result.get('web', {}).get('status') == 'completed':
+        safe['web'] = public_result(result)['web']
     return safe
 
 
@@ -184,9 +210,13 @@ class DiscoveryDialogue:
                     (result['revision'],encoded(payload),sid,member['id'],body.request_id)).rowcount
                 if not changed: raise PermissionError('Cet échange a été fermé.')
             return result
-        except Exception:
+        except Exception as exc:
             with self.db.connect() as c:
                 c.execute('UPDATE v2_discovery_sessions SET in_flight=NULL WHERE id=? AND in_flight=?',(sid,body.request_id))
+                if isinstance(exc,DialogueUnavailable) and body.session_id is None:
+                    # A failed typed opening has no session ID on the client yet.
+                    c.execute('DELETE FROM v2_discovery_sessions WHERE id=? AND owner_id=? AND revision=0 AND in_flight IS NULL',
+                              (sid,member['id']))
             raise
 
     def _assert_active(self, sid, member, request_id):
@@ -210,12 +240,17 @@ class DiscoveryDialogue:
             'history':history[-12:], 'previous_intent':intent.model_dump(),'last_result':public_result(last),
             'message':message,'recommend':body.recommend,'web_consent':body.web_consent}, fallback)
         self._assert_active(sid,member,body.request_id)
+        if body.cloud_consent and adapter.last_mode != 'openai':
+            # A requested AI conversation must not silently become a local script.
+            raise DialogueUnavailable(adapter.last_fallback)
         intent = decision.intent
         allowed = {a['id'] for a in last.get('suggestions',[])} | {a['id'] for p in last.get('plans',[]) for a in p.get('activities',[])}
         if not set(intent.selected_ids) <= allowed:
-            decision = fallback
-            intent = decision.intent
-            adapter.last_mode,adapter.last_fallback = 'offline','invalid_selection'
+            if body.cloud_consent and decision.action=='plan':
+                raise DialogueUnavailable('invalid_selection')
+            # Comparing cards does not execute a selection. Drop unusable IDs instead
+            # of failing an otherwise valid answer; plans still reject unknown IDs.
+            intent.selected_ids = [ident for ident in intent.selected_ids if ident in allowed]
         if intent.date_to and not intent.date_from:intent.date_from=intent.date_to
         if intent.date_from and not intent.date_to:intent.date_to=intent.date_from
         history.append({'role':'user','content':message or 'Propose-moi des idées.'})
@@ -237,8 +272,8 @@ class DiscoveryDialogue:
             if decision.action in ('discover','web','plan'):
                 if not intent.location:
                     raise PlanningIssue('location_missing','Dans quelle ville ou quel quartier souhaitez-vous chercher ?')
-                found = self.real.search(member['couple_id'],intent,limit=100 if decision.action=='plan' else 3)
-                result['suggestions'], result['retrieval'] = found['items'][:3], {k:v for k,v in found.items() if k!='items'}
+                found = self.real.search(member['couple_id'],intent,limit=100 if decision.action=='plan' else 4)
+                result['suggestions'], result['retrieval'] = found['items'][:4], {k:v for k,v in found.items() if k!='items'}
                 if decision.action == 'plan':
                     window = validate_window(intent)
                     # Explicit time or two real calendars: never silently schedule a demo Friday.
@@ -261,37 +296,93 @@ class DiscoveryDialogue:
                     result['mode']=adapter.last_mode
                     names = ' puis '.join(a['title'] for a in planned['plans'][0]['activities'])
                     result['reply']=f"Voici un programme avec {names}. Les horaires et prix viennent des sources ; les places disponibles restent à confirmer auprès des lieux."
-                elif (decision.action=='web' or not found['items']) and body.web_consent:
-                    self._search_web(member,intent,result)
+                elif body.web_consent and (decision.action=='web' or len(found['items'])<4
+                        or (intent.budget is not None and any(a['price_per_person'] is None for a in found['items'][:4]))):
+                    self._search_web(member,intent,result,sid,body.request_id)
                 elif found['items']:
                     names = ', '.join(a['name'] for a in found['items'])
                     result['reply']=f"J’ai trouvé {names}. Les fiches indiquent pourquoi ces pistes correspondent et ce qu’il reste à vérifier. Laquelle vous tente, ou préférez-vous une autre ambiance ?"
                 else:
                     result['diagnostic']={'code':'no_matching_real_activity'}
-                    result['reply']='Je n’ai pas de piste réelle correspondant à cette demande dans la base actuelle. Vous pouvez autoriser la recherche web ci-dessous, changer de lieu ou préciser une autre envie. Votre agenda ne bloque pas cette recherche.'
+                    result['reply']='Le catalogue seul ne contient pas de fiche assez précise pour cette demande. Votre agenda ne bloque pas la recherche ; une recherche web peut compléter les adresses et les prix manquants.'
         except PlanningIssue as exc:
             result.update(reply=str(exc),diagnostic={'code':exc.code})
+        if adapter.last_mode == 'openai' and decision.action != 'reply':
+            self._assert_active(sid,member,body.request_id)
+            facts = grounding(result)
+            allowed_ids = {a['id'] for a in facts['activities'] if a.get('id')}
+            answer = adapter.respond({'message':message,'history':history[-12:],
+                'intent':intent.model_dump(),'result':facts},
+                GroundedReply(candidate_ids=[], reply=result['reply'][:1100]), allowed_ids)
+            self._assert_active(sid,member,body.request_id)
+            result['reply'] = answer.reply
+            if adapter.last_mode != 'openai':
+                # Keep a completed search/plan, but disclose the failed reformulation.
+                result.update(mode='openai_partial',fallback=adapter.last_fallback,
+                    warning='La reformulation OpenAI a échoué. Les résultats vérifiés restent affichés. ' + str(DialogueUnavailable(adapter.last_fallback)))
         history.append({'role':'assistant','content':result['reply']})
         return result,intent,history
 
-    def _search_web(self, member, intent, result):
+    def _search_web(self, member, intent, result, sid, request_id):
         # Only the current user-approved search, never raw profiles or conversation history.
         query = ' ; '.join(x for x in [intent.location,
             'catégories : '+', '.join(intent.categories) if intent.categories else '',
             f'budget maximum {intent.budget:g} EUR pour deux' if intent.budget is not None else '',
+            f'soit AU PLUS {intent.budget/2:g} EUR PAR PERSONNE' if intent.budget is not None else '',
             f'du {intent.start} au {intent.end}' if intent.start and intent.end else '',
             f'période {intent.date_from} à {intent.date_to or intent.date_from}' if intent.date_from else '',
             'envies : '+', '.join(intent.preferences) if intent.preferences else '',
             'éviter : '+', '.join(intent.excluded) if intent.excluded else '', intent.summary[:250]] if x)
+        query = ('Cherche jusqu’à 8 adresses candidates pour retenir 4 recommandations distinctes. '
+                 'Le budget indiqué est le TOTAL pour deux, pas par personne. '
+                 'Priorité aux menus ou tarifs documentés. ' + query)
         if len(query)>800:
             raise PlanningIssue('search_too_long','La recherche contient trop de contraintes. Quelles sont vos deux ou trois priorités ?')
-        web = self.web.search(member,WebQuery(text=query,area=intent.location,cloud_consent=True))
-        result['web'] = web
-        if web['status']=='completed':
-            # Keep citations on screen, and avoid spelling Markdown URLs in speech.
-            text = re.sub(r'\[([^]]+)\]\([^)]+\)',r'\1',web['answer'])
-            text = re.sub(r'https?://\S+','',text).replace('*','').replace('#','')
-            result['reply']=(text[:1100].rsplit(' ',1)[0] if len(text)>1100 else text)+' Les sources sont sur les fiches ; disponibilité à confirmer.'
+        records, seen_names, batches = {}, [], []
+        web = None
+        # One complementary search after actual filtering, never an unbounded agent loop.
+        for attempt in range(2):
+            self._assert_active(sid,member,request_id)
+            batch = self.web.search(member,WebQuery(text=query,area=intent.location,cloud_consent=True,
+                processing='ask',result_limit=8,already_seen=seen_names[:16],refinement=bool(attempt)))
+            batches.append(batch)
+            if batch['status']!='completed':
+                if web is None:
+                    result['web']=batch
+                    result['diagnostic']={'code':batch['reason']}
+                    result['reply']='La recherche web est indisponible pour le moment. '+str(DialogueUnavailable(batch['reason']))
+                    return
+                web['refinement_reason']=batch['reason']
+                break  # Keep the first search's cards if the complement fails or hits quota.
+            self._assert_active(sid,member,request_id)
+            for activity in batch.get('activities',[]):
+                row = record_web(activity,batch.get('searched_at',datetime.now(timezone.utc).isoformat()))
+                records[row['id']] = row
+                if activity['name'] not in seen_names:
+                    seen_names.append(activity['name'])
+            # Structured web facts use the same constraints/ranking as the catalog.
+            found = self.real.search(member['couple_id'],intent,limit=4,
+                extra_records=[DatabaseActivities.adapt(a) for a in records.values()])
+            sources = {s['url']:s for b in batches for s in b.get('sources',[])}
+            web = {**batch,'sources':list(sources.values()),'source_count':len(sources),
+                'cached':all(b.get('cached',False) for b in batches)}
+            for field in ('raw_count','invalid_count','uncited_count','tool_calls','search_calls'):
+                web[field] = sum(b.get(field,0) for b in batches)
+            result['suggestions'] = found['items']
+            result['retrieval']['web'] = {k:v for k,v in found.items() if k!='items'}
+            if len(found['items'])>=4 and (intent.budget is None
+                    or all(a['price_per_person'] is not None for a in found['items'])):
+                break
+        CatalogService(self.db,self.real.memory).persist(list(records.values()))
+        web['requests']=len(batches)
+        result['retrieval']['web']['requests']=len(batches)
+        if result['suggestions']:
+            names = ', '.join(a['name'] for a in result['suggestions'])
+            result['reply']=f'Voici {names}. Les prix connus figurent sur les fiches ; les autres prix et la disponibilité restent à confirmer.'
         else:
-            result['diagnostic']={'code':web['reason']}
-            result['reply']='La recherche web est indisponible pour le moment. Aucun résultat n’a été inventé. Vous pouvez garder les pistes affichées ou essayer une autre demande dans la base locale.'
+            result['diagnostic']={'code':'no_matching_web_activity'}
+            result['reply']='La recherche web n’a pas fourni d’adresse correspondant aux critères avec une source exploitable. Je peux chercher une autre cuisine ou un secteur voisin ; je n’ai pas modifié votre budget.'
+        if web.get('refinement_reason'):
+            result['warning']='La recherche complémentaire a échoué ; les premières pistes sont conservées. '+str(DialogueUnavailable(web['refinement_reason']))
+        # Do not announce unfiltered (over-budget/excluded) venues in the summary.
+        result['web']={**web,'answer':result['reply'],'activities':[]}

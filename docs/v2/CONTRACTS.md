@@ -427,3 +427,62 @@ francilien sont conservés. `ActivityChoice` ajoute deux champs optionnels :
 Ils décrivent l’export, jamais le prix par personne ou une offre actuelle vérifiée.
 `price_per_person`, horaires, coordonnées exactes et disponibilité restent inconnus.
 La déduplication web reconnaît aussi les URLs de réservation du même bar.
+
+## Démarrage et cohabitation des parcours après fusion
+
+`GET /integrations` expose ensemble dialogue, calendrier connecté et catalogue
+importé. `app.state.v2` conserve aussi dialogue et real_recommendations.
+`GET /activities/real?query=&category=` expose au plus 100 pistes de la base publique,
+filtrées selon le couple, pour la liste Discover ; aucun fournisseur n'est appelé
+par cette lecture. Ask utilise la même base, sans étiqueter les imports OpenAI.
+La recherche de cartes et leur composition restent `/dates/search` ; l'échange
+vocal reste `/ask/chat`. Les API de confidentialité, profils et consentements
+restent inchangées. Le lanceur refuse un environnement incomplet avec une commande
+d'installation lisible, avant la lecture des secrets ou l'ouverture du serveur.
+
+## Ask automatique et formulation des résultats
+
+Le client courant envoie cloud_consent=true pour chaque POST /ask/chat déclenché
+par une demande. Le paramètre conserve sa valeur par défaut false pour les clients
+antérieurs. /integrations.dialogue.activation=ask_submit indique cette activation
+par l'envoi, requires_consent restant true au niveau du contrat API. Le web conserve
+son propre booléen. Accueil vide et rendu de la page ne déclenchent pas OpenAI.
+
+Un échec du premier appel est HTTP 503 avec error.code/message nettoyés ; aucun
+SDK message brut. Codes spécifiques : not_configured_or_disabled,
+authentication_failed, provider_quota_exhausted, provider_rate_limited,
+provider_request_rejected, provider_timeout, budget_limit_reached,
+model_not_budgeted, invalid_budget_configuration ou sortie invalide. Révision et
+historique ne progressent pas sur cet échec. Le retry explicite garde request_id.
+
+Après discover/web/plan, GroundedReply contient candidate_ids et reply ; les IDs
+hors résultats sont rejetés. Le texte n'invente pas de preuve de disponibilité.
+Un échec à cette seconde étape produit mode=openai_partial, fallback et warning,
+avec cartes/programmes conservés ; la réponse complète reste rejouable sans appel.
+Succès : mode=openai. Réserve locale : 0,02 USD par appel texte (donc 0,04 pour
+compréhension + formulation), distincte d'une facture et inchangée par appel.
+
+## Ask : cartes web et recherche complémentaire automatique
+
+Le client Ask courant transmet cloud_consent=true ET web_consent=true. Le protocole
+conserve false par défaut pour les autres clients. OPENAI_WEB_ENABLED=0 bloque les
+nouveaux appels web ; run_voice.sh utilise 1 si l'option n'est pas définie.
+
+WebQuery.processing accepte ask pour les demandes du dialogue. result_limit=8,
+already_seen et refinement constituent le contexte public interne de recherche ;
+ces valeurs participent au cache, qui distingue aussi processing. L'extraction
+Ask/food accepte un prix individuel documenté ou inconnu, jamais un montant couple
+ambigu converti en moitié de prix. Le coût à deux vient de price_per_person * 2.
+
+H applique RealRecommendations aux WebActivity adaptées via record_web, conserve
+au plus quatre lieux distincts et écrit les fiches publiques dans v2_activities.
+Une recherche complémentaire a lieu si la première laisse moins de quatre cartes
+ou des prix inconnus alors qu'un budget est demandé.
+web.requests et retrieval.web.requests comptent les requêtes (maximum deux).
+Les comptes/sources des requêtes réussies sont agrégés. refinement_reason et warning
+signalent l'échec éventuel du complément sans retirer les cartes déjà trouvées.
+Les sources de lieux éliminés ne servent pas de contexte au modèle de formulation.
+budget_check transmet au modèle le budget à deux, le nombre de tarifs connus et
+les noms des lieux sans prix, aussi lors des comparaisons. Un selected_id inconnu
+reste bloquant avant planification ; une réponse sans action élimine ces IDs
+inutilisés pour ne pas interrompre une simple comparaison.

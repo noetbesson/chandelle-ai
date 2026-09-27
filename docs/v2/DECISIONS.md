@@ -341,3 +341,75 @@ Ne pas convertir le tarif d’une boisson en budget du date. Ignorer les capacit
 réservables, badges « vérifié » et images tierces non nécessaires. La date de
 collecte reste inconnue. Bar.xlsx reste optionnel pour les anciens lots de sept
 fichiers. Les recherches de terrasse excluent explicitement son absence.
+
+## Réconciliation de la fusion Ask/catalogue/calendrier
+
+Garder une seule définition active des services, imports et fonctions UI. Le
+pipeline principal PlanningService.query reste celui des cartes importées/web ;
+la composition vocale conserve son injection explicite de candidats validés via
+_query_candidates. Les erreurs de calendrier bloquent cette composition, pas la
+consultation de pistes. Les tests de ces diagnostics portent désormais sur cette
+entrée de composition, les tests web conservant le comportement cartes sans agenda.
+
+Adapter les lignes publiques SQLite au contrat des fiches vocales à la frontière C,
+sans recréer de base ni dépendre du fichier de catalogue retiré. Conserver le nom du
+fournisseur et les inconnues ; ne convertir en événement daté que les horaires
+publiés d'un événement/séance/créneau. Tester ensemble intégrations, catalogue et Ask.
+Vérifier les dépendances au démarrage, sans installation réseau automatique.
+
+## Ask utilise OpenAI à chaque demande — 27 septembre 2026
+
+À la demande utilisateur, retirer la case d'activation OpenAI dans Ask. Informer
+près de la chandelle que les messages vont à OpenAI et l'audio à Gradium ; chaque
+envoi utilise cloud_consent=true. Le protocole garde explicitement false pour les
+anciens clients : aucun élargissement implicite des données transmises. Le web
+reste facultatif et séparé. L'accueil vide ne nécessite pas d'appel OpenAI.
+
+Séparer compréhension/action et formulation après exécution. Responses produit
+l'intention, le backend cherche/compose sur les sources existantes, puis Responses
+explique les fiches publiques fraîchement trouvées. Une question sur les résultats
+utilise un seul appel. Ne pas attribuer de réputation ou d'ambiance à partir d'une
+note. Conserver les inconnues de prix et de disponibilité. Le second appel valide
+les IDs et exclut les profils/notes/scores personnels de sa projection.
+
+Une panne du premier appel renvoie une erreur explicite 503, sans recherche ni
+repli local caché. Révision inchangée, verrou libéré, ouverture vide supprimée si
+le client n'a pas encore de session. Le frontend conserve aussi une transcription
+en cas d'échec pour pouvoir la renvoyer. Une panne de formulation garde les résultats
+acquis et ajoute warning/mode=openai_partial ; un retry rejoue le résultat, sans
+recréer un programme. Les réserves financières existantes couvrent chaque appel.
+
+## Vérifications proportionnées
+
+check.sh lance par défaut 23 tests backend essentiels, les suites frontend, le
+contrat TS et le parcours API. --ask sélectionne le dialogue/Gradium/OpenAI ; --full
+reste la régression de référence avant PR ou changement transversal. Ne supprimer
+aucun scénario utile : enlever uniquement les deux invocations frontend dupliquées.
+Les trois modes interdisent le réseau et utilisent une base temporaire. Le script
+live_ask_smoke.py est séparé, exige RUN_LIVE_OPENAI_SMOKE=1 et utilise des personnes
+synthétiques/base temporaire. Aucune clé et aucune mémoire personnelle dans les logs.
+
+## Recherche automatique et complément après filtrage — 27 septembre 2026
+
+La demande utilisateur autorise maintenant le web par défaut dans Ask. Supprimer
+la case web ; le client transmet cloud_consent=true et web_consent=true avec chaque
+demande, après une notice visible. Les anciens clients gardent le refus explicite
+et le serveur respecte OPENAI_WEB_ENABLED=0. Aucun appel au simple affichage Ask.
+
+Les sources importées sans adresse ne prouvent pas un arrondissement. Normaliser
+Paris 14/14e/XIV/75014 et appliquer le filtre géographique avant la limite locale.
+Écarter le vocabulaire de demande générique du FTS, sans supprimer les goûts précis.
+Le web fournit des WebActivity, pas une simple note : convertir, filtrer, classer,
+persister les faits publics et transmettre les quatre cartes retenues au modèle.
+Ne transmettre à la formulation que les sources associées aux cartes retenues.
+
+Une recherche ne garantit pas assez de résultats après filtrage. Un complément
+borné réutilise les contraintes et exclut les noms déjà examinés ; il ne change ni
+le quartier ni le budget pour remplir quatre cases. Deux requêtes web maximum par
+tour, quotas atomiques inchangés par requête, pas de retry SDK. Contrôler que la
+session est toujours active avant chaque nouvel appel et après son retour.
+
+Pour Ask/food, les prix documentés sont individuels. Un fournisseur renvoyant une
+unité couple ambiguë produit prix inconnu, pas une division par deux. L'autre
+parcours web garde son contrat historique. Les prix connus compatibles sont
+prioritaires, les inconnus restent des pistes explicites. Aucune garantie de place.

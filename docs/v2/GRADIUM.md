@@ -1,7 +1,7 @@
 # Ask vocal — configuration et utilisation
 
 > Parcours courant : [dialogue libre et recommandations réelles](ASK_DIALOGUE.md).
-> Le frontend utilise une session OpenAI optionnelle. Discover conserve le catalogue.
+> Chaque demande du frontend utilise une session OpenAI. Discover conserve le catalogue.
 
 
 Le dialogue vocal est intégré au même backend que la mémoire et les cartes.
@@ -25,8 +25,10 @@ port avant de relancer. Diagnostic sans appel API :
 
 Ouvrir http://127.0.0.1:8000, terminer les deux entretiens si nécessaire, puis
 **Ask**, puis cliquer sur le chandelier déjà visible. Les activités restent consultables dans Discover.
-Le lanceur propose aussi OpenAI et la recherche web ; autoriser séparément leur
-utilisation dans « Options du dialogue » pour activer la compréhension libre et la recherche.
+Le lanceur active OpenAI, le web et Gradium par défaut ; les désactivations explicites du
+.env restent prioritaires. Dans Ask, OpenAI intervient à chaque demande. Le web
+complète automatiquement les fiches ou prix manquants, sans case ni accord oral
+supplémentaire. Seule l'autorisation du microphone dépend du navigateur.
 
 1. Chandelle demande votre envie de sortie et lit la question.
 2. Toucher la chandelle pour parler et autoriser le micro (45 secondes maximum).
@@ -57,7 +59,7 @@ Aucune dépendance nouvelle : python-dotenv et httpx sont déjà déclarés.
 
 ## Périmètre réellement implémenté
 
-Dialogue libre avec OpenAI activé et autorisé ; mode local limité sinon. Gradium
+Dialogue libre avec OpenAI à chaque demande ; une panne est affichée explicitement. Gradium
 transcrit et synthétise ; H interprète et conserve le contexte ; C cherche les
 sources réelles ; E compose le programme. Le transport audio reste par tours,
 sans écoute permanente ni interruption vocale automatique. Une date explicitement
@@ -116,8 +118,8 @@ activer la voix. Les modèles STT/TTS sont facultatifs. Ne pas transmettre les c
 dans le chat ou dans Git. Le fichier `backend/integrations/.env.example` contient
 uniquement les noms et des valeurs vides ou désactivées.
 
-Le dialogue Discover utilise le même service de recherche web que les formulaires
-Ask/Discover. Les résultats sont des cartes individuelles, même quand des champs
+Le dialogue Ask utilise le même service de recherche web que les outils avancés.
+Les résultats sont des cartes individuelles, même quand des champs
 manquent pour composer un programme. Le catalogue fictif n'est pas réintroduit.
 Le clavier fonctionne sans Gradium ; un statut configuré ne prouve pas qu'un appel
 fournisseur a réussi. Les tests du connecteur simulent le fournisseur.

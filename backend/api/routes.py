@@ -18,6 +18,7 @@ from backend.streams.A_calendar.service import AvailabilityService, Availability
 from backend.streams.F_booking.service import prepare, calendar
 from backend.streams.D_connectors.service import InspirationService, SignalImport, SignalConfirm
 from backend.integrations.openai import OpenAIAdapter
+from backend.integrations.dialogue import DialogueUnavailable
 from backend.integrations.gradium import GradiumAdapter, SpeechUnavailable
 from backend.integrations.google_calendar import download_calendar, CalendarUnavailable
 from starlette.concurrency import run_in_threadpool
@@ -74,7 +75,6 @@ def install_routes(app,db_path):
     dialogue=DiscoveryDialogue(db,planning,real_recommendations,web_discovery)
     app.state.v2={'db':db,'memory':memory,'onboarding':onboarding,'catalog':catalog,'planning':planning,'suggestions':suggestions,'availability':availability,'inspirations':inspirations,'dialogue':dialogue,'real_recommendations':real_recommendations}
     planning.web=web_discovery
-    app.state.v2={'db':db,'memory':memory,'onboarding':onboarding,'catalog':catalog,'planning':planning,'suggestions':suggestions,'availability':availability,'inspirations':inspirations}
     router=APIRouter(prefix='/api/v2')
 
     def auth(x_member_token: str | None=Header(default=None)):
@@ -107,14 +107,17 @@ def install_routes(app,db_path):
     @router.get('/integrations')
     def integrations():
         from backend.integrations.dialogue import DialogueAdapter
+        from backend.streams.C_discovery.local_catalog import ImportedCatalog
         return {'gradium':GradiumAdapter().status(),
                 'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},
-                'dialogue':{**DialogueAdapter().status(),'requires_consent':True,'session_hours':2},
-                'calendar':{'google_ical_import':True,'automatic_sync':False,'mode':'manual_or_import_or_demo','timezone':'Europe/Paris','ics_export':True},
-                'catalog':{'mode':'internal_demo','dialogue_source':'real_activity_source'},
-                'schema_version':1,'extensions':{'peer_merge':1,'google_ical':1,'discovery_dialogue':1},
+                'dialogue':{**DialogueAdapter().status(),'requires_consent':True,'activation':'ask_submit','session_hours':2},
+                'calendar':{'mode':'manual_or_connected','timezone':'Europe/Paris','ics_export':True,
+                    'google_ical_import':True,'automatic_sync':False,
+                    'providers':{p:calendars['auth'].configured(p) for p in ('google','outlook')},
+                    'apple_caldav':False,'scheduler_running':bool(calendars['scheduler'].scheduler and calendars['scheduler'].scheduler.running)},
+                'catalog':{'mode':'imported_and_web',**ImportedCatalog(db).status()},
+                'schema_version':1,'extensions':{'peer_merge':1,'calendar_proactive':1,'google_ical':1,'voice':1,'discovery_dialogue':1},
                 'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
-    def integrations():return {'gradium':GradiumAdapter().status(),'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_connected','timezone':'Europe/Paris','ics_export':True,'google_ical_import':True,'automatic_sync':False,'providers':{p:calendars['auth'].configured(p) for p in ('google','outlook')},'apple_caldav':False,'scheduler_running':bool(calendars['scheduler'].scheduler and calendars['scheduler'].scheduler.running)},'catalog':{'mode':'imported_and_web',**__import__('backend.streams.C_discovery.local_catalog',fromlist=['ImportedCatalog']).ImportedCatalog(db).status()},'schema_version':1,'extensions':{'peer_merge':1,'calendar_proactive':1,'google_ical':1,'voice':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
 
     @router.post('/onboarding/couples')
     def create(body:CoupleCreate):return onboarding.create(body)
@@ -212,8 +215,14 @@ def install_routes(app,db_path):
         result=planning.query(member['couple_id'],Query.model_validate(values),deck_options={'owner_id':member['id'],'duration':360,'travel':30})
         return {**result,'search_id':result['run_id'],'proposals':result['plans'],'answer':result['message'],'segments':[]}
 
-    @router.get('/activities')
     @router.get('/activities/real')
+    def real_activities(query:str='',category:str='',member=Depends(ready)):
+        from backend.integrations.dialogue import SearchIntent
+        intent=SearchIntent(summary=query,categories=[category] if category else [])
+        found=real_recommendations.search(member['couple_id'],intent,limit=100)
+        return {'items':found['items'],'total':found['total']}
+
+    @router.get('/activities')
     def activities(query:str='',category:str|None=None,limit:int=30,offset:int=0,member=Depends(ready)):
         # These former catalogue routes expose no alternate source. Explicit search is required.
         return catalog.browse(query,category,limit,offset)
@@ -241,6 +250,8 @@ def install_routes(app,db_path):
                 return dialogue.turn(member,body)
             except DialogueConflict as exc:
                 raise HTTPException(409,str(exc)) from None
+            except DialogueUnavailable as exc:
+                return JSONResponse(status_code=503,content={'error':{'code':exc.code,'message':str(exc)}})
         return discovery_turn(body, lambda text, budget: planning.query(member['couple_id'],
             Query(text=text, budget=budget, activity_count=2, max_plans=3, mode='auto'),
             deck_options={'owner_id':member['id'],'duration':360,'travel':30}))

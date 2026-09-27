@@ -6,13 +6,15 @@ contract. Missing facts stay unknown; only complete, dated events reach E.
 from datetime import date, datetime, timedelta, timezone
 from typing import Protocol
 import re
+import json
 from zoneinfo import ZoneInfo
 from pydantic import ValidationError
 from backend.integrations.urls import public_url
 from backend.streams.C_discovery.normalizers.models import Activity
-from backend.streams.C_discovery.service import cached_real_activities, _distance
+from backend.streams.C_discovery.service import _distance
 from backend.streams.H_conversation.service import interests, normalize
 from backend.streams.E_orchestrator.models import CandidateActivity
+from backend.streams.C_discovery.locations import matches_location, paris_district
 
 PARIS = ZoneInfo('Europe/Paris')
 ALIASES = {'restaurant':'food','dinner':'food','concert':'concerts','museum':'culture',
@@ -22,9 +24,42 @@ ALIASES = {'restaurant':'food','dinner':'food','concert':'concerts','museum':'cu
 class ActivitySource(Protocol):
     def activities(self) -> list[dict]: ...
 
-class DiscoveryCache:
-    def activities(self):
-        return cached_real_activities()
+class SourcedActivity(Activity):
+    # Imported public sources retain their actual provenance, never an AI label.
+    source: str
+    attribution: str
+
+
+class DatabaseActivities:
+    def __init__(self, db):
+        self.db = db
+
+    def search(self, intent):
+        from backend.streams.C_discovery.local_catalog import ImportedCatalog
+        query = ' '.join([intent.summary, *intent.preferences])
+        imported = ImportedCatalog(self.db).search(query, intent.categories, limit=200, location=intent.location)
+        with self.db.connect() as c:
+            web = [json.loads(row[0]) for row in c.execute(
+                "SELECT payload FROM v2_activities WHERE json_extract(payload,'$.provider')='openai_web'")]
+        return [self.adapt(row) for row in [*imported, *web]]
+
+    @staticmethod
+    def adapt(row):
+        location = row.get('location') or {}
+        dated = row.get('kind') in ('event', 'screening', 'bookable_slot') and row.get('schedule_status') == 'published'
+        return {'id': row['id'], 'kind': 'event' if dated else 'place',
+            'type': row['category'], 'name': row['title'], 'description': row.get('description') or None,
+            'tags': row.get('tags', []), 'start': row.get('starts_at') if dated else None, 'end': row.get('ends_at') if dated else None,
+            'opening_hours': None, 'price_per_person': row.get('price_per_person'),
+            'price_level': row.get('price_tier'),
+            'location': {'lat': location.get('lat'), 'lng': location.get('lng'),
+                         'address': row.get('address') or row.get('city') or None,
+                         'arrondissement': paris_district(row.get('address') or '')},
+            'booking_url': row.get('booking_url'), 'website': row.get('source_url') or row.get('source'),
+            'image_url': row.get('image_url'), 'rating': row.get('rating'),
+            'source': row.get('source_name') or row.get('provider') or 'public_source',
+            'attribution': row.get('source_name') or 'Recherche web',
+            'match_score': None, 'why': None, 'fetched_at': row.get('checked_at')}
 
 
 def terms(text):
@@ -51,22 +86,25 @@ def effective_budget(context, explicit):
 class RealRecommendations:
     def __init__(self, db, memory, source=None):
         self.db, self.memory = db, memory
-        self.source = source or DiscoveryCache()
+        self.source = source or DatabaseActivities(db)
 
-    def search(self, cid, intent, limit=3):
+    def search(self, cid, intent, limit=4, extra_records=()):
         context = self.memory.planning_context(cid)
         budget = effective_budget(context, intent.budget)
         profiles = [context['person_a'], context['person_b'], context['couple']]
         with self.db.connect() as c:
             disliked = {r[0] for r in c.execute("SELECT activity_id FROM v2_activity_states WHERE user_id IN (SELECT user_id FROM v2_memberships WHERE couple_id=?) AND state IN ('disliked','rejected')", (cid,))}
-        records = self.source.activities()
+        records = self.source.search(intent) if hasattr(self.source, 'search') else self.source.activities()
+        records = [*extra_records, *records]
         rows, rejected = [], {'expired':0, 'constraints':0, 'invalid':0}
         seen=set()
         now = datetime.now(timezone.utc)
         for raw in records:
             try:
-                a = Activity.model_validate(raw)
-                if a.id in seen or not a.website or not public_url(str(a.website)):
+                a = SourcedActivity.model_validate(raw)
+                if a.id in seen:
+                    continue
+                if not a.website or not public_url(str(a.website)):
                     raise ValueError('No public source')
             except (ValidationError, ValueError, TypeError):
                 rejected['invalid'] += 1
@@ -83,10 +121,7 @@ class RealRecommendations:
                 category = next((x for x in inferred if x in ('culture','food','concerts','outdoors','cinema','workshops')), category)
             searchable = text + ' ' + category
             excluded = [*intent.excluded, *[v for p in profiles for v in p.get('dislikes', [])]]
-            location_terms = terms(intent.location) - {'a','au','aux','de','du','des','le','la','les','en','dans','pres','vers','autour','arrondissement'}
-            address = terms(a.location.address or '')
-            if a.location.arrondissement:
-                address.update({str(a.location.arrondissement), f'{a.location.arrondissement}e', f'{a.location.arrondissement}eme'})
+            location_ok = matches_location(intent.location, a.location.address, a.location.arrondissement)
             known_date_conflict = False
             if intent.date_from and a.kind=='event' and a.start:
                 day_start=date.fromisoformat(intent.date_from)
@@ -98,7 +133,7 @@ class RealRecommendations:
             if (a.id in disliked or a.id in intent.avoid_ids or matches(searchable, excluded)
                 or (intent.categories and category not in intent.categories)
                 or (budget is not None and a.price_per_person is not None and a.price_per_person*2 > budget)
-                or (location_terms and not location_terms <= address)
+                or not location_ok
                 or known_date_conflict):
                 rejected['constraints'] += 1
                 continue
@@ -126,7 +161,12 @@ class RealRecommendations:
                         reasons=evidence, unknown=unknown, demo=False,
                         total_couple_cost=None if a.price_per_person is None else a.price_per_person*2)
             rows.append(item)
-        rows.sort(key=lambda a: (-a['score'], a['id']))
+        rows.sort(key=lambda a: (a['price_per_person'] is None if budget is not None else False, -a['score'], a['id']))
+        unique = {}
+        for item in rows:
+            key = (normalize(item['name']), item['location']['arrondissement']) if item['kind']=='place' else item['id']
+            unique.setdefault(key, item)
+        rows = list(unique.values())
         return {'items':rows[:limit], 'total':len(rows), 'rejected':rejected,
                 'source_count':len(records), 'budget_cap':budget,
                 'status':'found' if rows else 'no_matching_real_activity'}

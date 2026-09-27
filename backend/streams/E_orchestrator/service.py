@@ -68,7 +68,7 @@ class PlanningService:
         couple=context['couple']
         return CoupleProfile(user_a=PersonPreferences(interests=a.get('interests',[]),dislikes=a.get('dislikes',[])),user_b=PersonPreferences(interests=b.get('interests',[]),dislikes=b.get('dislikes',[])),shared_interests=couple.get('interests',couple.get('shared_interests',[])),dislikes=list(set(a.get('dislikes',[])+b.get('dislikes',[]))),typical_budget=budget,desired_novelty=couple.get('novelty',.5))
 
-    def query(self,cid,request,*,candidate_provider=None,parsed_request=None):
+    def _query_candidates(self,cid,request,*,candidate_provider=None,parsed_request=None):
         rid=uuid4().hex
         trace=[]
         try:
@@ -118,6 +118,7 @@ class PlanningService:
                 explanation=adapter.explain([{'id':x['activity']['id'],'title':x['activity']['title'],'person_a_score':x['person_a_score'],'person_b_score':x['person_b_score']} for x in selected]) if request.mode=='openai' and os.getenv('OPENAI_PLAN_EXPLANATIONS')=='1' else None
                 if adapter.last_mode=='openai':mode='openai'
                 item=self._decorate(plan,selected,cid,mode,window,budget)
+                item['source']='real_source_availability_unconfirmed'
                 if explanation is not None:item['reason']=explanation.explanation
                 item['_candidates']=[x.model_dump(mode='json') for x in candidates]
                 item['_profile']=profile.model_dump(mode='json')
@@ -125,7 +126,15 @@ class PlanningService:
                 result.append(self.public(item))
             trace.append({'stage':'plan','detail':f'{len(result)} coherent plans composed by E'})
             output={'run_id':rid,'plans':result,'trace':trace,'mode':mode,'status':'completed'}
-    def query(self,cid,request,*,deck_options=None):
+            self._run(cid,rid,output)
+            return output
+        except Exception:
+            self._run(cid,rid,{'run_id':rid,'status':'failed','trace':trace,'error':'No feasible plan or invalid request'})
+            raise
+
+    def query(self,cid,request,*,deck_options=None,candidate_provider=None,parsed_request=None):
+        if candidate_provider is not None:
+            return self._query_candidates(cid,request,candidate_provider=candidate_provider,parsed_request=parsed_request)
         from datetime import timedelta,timezone
         from zoneinfo import ZoneInfo
         import hashlib
@@ -292,13 +301,11 @@ class PlanningService:
     def _decorate(self,plan,selected,cid,mode,window,budget):
         item=plan.model_dump(mode='json')
         item['id']=item['date_plan_id']=uuid4().hex
-        item.update(couple_id=cid,status='draft',generated_at=now(),mode=mode,model=OpenAIAdapter().model if mode=='openai' else None,source='internal_demo_unverified' if all(x['activity'].get('demo',True) for x in selected) else 'real_source_availability_unconfirmed',kept_ids=[],total_couple_cost=plan.estimated_total_eur,per_person_cost=plan.estimated_total_eur/2,evidence=[e for x in selected for e in x['evidence']],time_window=window.model_dump(mode='json'),budget_cap=budget)
         item.update(couple_id=cid,status='draft',generated_at=now(),mode=mode,model=OpenAIAdapter().model if mode=='openai' else None,source='web_sourced_unverified_availability',kept_ids=[],total_couple_cost=plan.estimated_total_eur,per_person_cost=plan.estimated_total_eur/2,evidence=[e for x in selected for e in x['evidence']],time_window=window.model_dump(mode='json'),budget_cap=budget)
         for key in ('person_a_score','person_b_score','couple_score'):item[key]=round(sum(x[key] for x in selected)/len(selected),4)
         timeline=[]
         for i,a in enumerate(item['activities']):
             catalog=selected[i]['activity']
-            a.update(title=a['name'],category=a['type'],source=catalog['source'],demo=catalog.get('demo',True),description=catalog['description'],address=catalog['address'])
             a.update(title=a['name'],category=a['type'],source=catalog['source'],demo=False,description=catalog['description'],address=catalog['address'],source_url=catalog.get('source_url'),schedule_status=catalog.get('schedule_status'),checked_at=catalog.get('checked_at'))
             if i:
                 left,right=plan.activities[i-1],plan.activities[i]
@@ -307,8 +314,6 @@ class PlanningService:
                 timeline.append({'type':'travel','minutes':minutes,'from':left.name,'to':right.name})
             timeline.append({'type':'activity','id':a['id'],'title':a['title'],'start':a['start'],'end':a['end']})
         item['timeline']=timeline
-        if not all(x['activity'].get('demo',True) for x in selected):
-            item['reason']='Programme construit à partir des horaires et prix des sources. Disponibilité et tarifs à reconfirmer auprès des lieux.'
         item['_e_plan']=plan.model_dump(mode='json')
         return item
 
@@ -357,7 +362,6 @@ class PlanningService:
 
     def replace(self,cid,pid,activity_id,new_constraints=None):
         item=self.get(cid,pid)
-        if item.get('source')=='real_source_availability_unconfirmed':raise PlanningIssue('real_plan_refresh_required', 'Reprenez le dialogue pour chercher une autre activité réelle et vérifier ses horaires.')
         if item['status'] not in ('draft','proposed'):raise ValueError('Only draft or proposed plans can change')
         if activity_id in item['kept_ids']:raise ValueError('Unkeep this activity before replacing it')
         if '_deck' in item:

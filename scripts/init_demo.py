@@ -14,7 +14,8 @@ def main():
     os.environ['CHANDELLE_DB_PATH'] = str(Path(args.database).resolve())
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from backend.api.app import app
-    assert app.state.v2['db'] is not None
+    from backend.streams.C_discovery.local_catalog import ImportedCatalog
+    ImportedCatalog(app.state.v2['db']).import_bundle()
     print('Initialized schema and activity catalog; no user profiles:', args.database)
 
 

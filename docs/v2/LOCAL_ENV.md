@@ -19,10 +19,14 @@ REELS_LIVE_ENABLED=0
 ```
 
 Renseigner les trois valeurs vides dans l’éditeur local, jamais dans le chat.
-Le consentement cloud et le consentement web restent nécessaires dans Ask.
+Chaque envoi dans Ask utilise OpenAI, annoncé dans la page ; il n’y a plus de
+case cloud ou web à cocher, ni confirmation orale pour rechercher des adresses.
 Mettre `OPENAI_WEB_ENABLED=0` pour désactiver le web sans nouvelle question au
-lancement. `run_voice.sh` active Gradium par défaut uniquement si cette option
-n’est pas renseignée ; une valeur explicite `GRADIUM_ENABLED=0` est respectée.
+lancement. `run_voice.sh` active OpenAI, le web et Gradium par défaut si leurs options ne sont
+pas renseignées. Les valeurs explicites à 0 restent respectées ; Ask signale alors
+OpenAI indisponible au premier message si celui-ci est désactivé. Le web intervient
+automatiquement quand les fiches ou leurs prix sont insuffisants, dans le quota
+local configuré ; la disponibilité commerciale reste à confirmer.
 
 `bash scripts/run_voice.sh --check-env` vérifie la présence des trois valeurs,
 la syntaxe et les options, avec résultat masqué. Il ne vérifie ni le solde, ni la
@@ -54,3 +58,18 @@ Recharger l’onglet ouvert (⌘R sur Mac) : redémarrer le serveur ne remplace 
 le JavaScript déjà en mémoire dans une page. La version courante affiche
 le chandelier directement dans Ask et uniquement le catalogue dans Discover.
 Aucun effacement des profils, cookies ou données locales n’est nécessaire.
+
+## Après un pull qui ajoute des dépendances
+
+Le pull met à jour le code, pas les bibliothèques du venv. Depuis la racine :
+
+```bash
+uv pip install --python .venv/bin/python -r backend/requirements.txt
+bash scripts/run_voice.sh
+```
+
+Si le venv possède pip, `.venv/bin/python -m pip install -r backend/requirements.txt`
+est également possible. Le lanceur contrôle les versions et donne cette indication
+si l'environnement est incomplet. Il n'installe rien automatiquement.
+Pour les vérifications TypeScript, installer aussi les dépendances de frontend
+(`npm install --prefix frontend --ignore-scripts --no-package-lock`, ou le lock pnpm).

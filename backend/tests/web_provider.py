@@ -12,6 +12,9 @@ class Provider:
         self.calls.append(kwargs)
         payload=json.loads(kwargs['input']);window=payload['plan']['time_window']
         start=datetime.fromisoformat(window['start']);base=start.replace(hour=19,minute=0,second=0,microsecond=0)
+        # Undated searches start after the current time. A fixed 19:00 event
+        # otherwise falls outside their window after 18:30, making tests clock-dependent.
+        base=max(base,start+timedelta(minutes=15))
         choices=[('food',0,20,['japanese','quiet','vegetarian']),('food',0,22,['japanese','quiet','vegan']),('food',0,18,['italian','quiet']),('outdoors',120,0,['walking','nature','romantic']),('outdoors',120,0,['walking','nature']),('outdoors',120,0,['walking','quiet']),('culture',0,10,['art','quiet']),('culture',120,12,['art','creative']),('concerts',90,15,['jazz','music','loud']),('concerts',90,17,['jazz','music','quiet'])]
         activities=[]
         for i,(category,offset,price,tags) in enumerate(choices):

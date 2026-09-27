@@ -78,6 +78,17 @@ def test_explicit_disable_is_respected_even_by_voice_launch(local_env, monkeypat
     assert captured['OPENAI_ENABLED'] == captured['GRADIUM_ENABLED'] == '0'
 
 
+def test_voice_launch_enables_ai_with_three_keys_and_no_extra_prompt(local_env,monkeypatch):
+    local_env.write_text('OPENAI_API_KEY=sk-test-only\nGRADIUM_API_KEY=test-only\nGRADIUM_VOICE_ID=test-voice\n')
+    captured={}
+    monkeypatch.setattr('builtins.input',lambda *a: pytest.fail('No activation checkbox or launch prompt'))
+    monkeypatch.setattr(launcher.os,'chdir',lambda path:None)
+    monkeypatch.setattr(launcher.os,'execve',lambda exe,argv,env:captured.update(env))
+    assert launcher.main(['--voice'])==0
+    assert captured['OPENAI_ENABLED']==captured['GRADIUM_ENABLED']=='1'
+    assert captured['OPENAI_WEB_ENABLED']=='1'
+
+
 def test_noninteractive_missing_secret_fails_without_server(local_env, monkeypatch, capsys):
     monkeypatch.setattr(launcher.os, 'execve', lambda *a: pytest.fail('Must not start'))
     assert launcher.main(['--voice']) == 1
@@ -120,3 +131,31 @@ def test_dotenv_files_are_not_served_by_api(client):
 
 # Reuse the isolated API fixture; it never imports the real local .env.
 from backend.tests.test_api import client, offline_only
+
+
+def test_missing_dependency_shows_actionable_message_before_loading_secrets(local_env, monkeypatch, capsys):
+    complete_file(local_env)
+    installed = launcher.version
+    def missing_crypto(name):
+        if name == 'cryptography':
+            raise launcher.PackageNotFoundError(name)
+        return installed(name)
+    monkeypatch.setattr(launcher, 'version', missing_crypto)
+    monkeypatch.setattr(launcher.os, 'execve', lambda *a: pytest.fail('Incomplete runtime must not start'))
+    assert launcher.main(['--voice']) == 1
+    output = capsys.readouterr().err
+    assert 'cryptography (absent)' in output
+    assert 'uv pip install --python .venv/bin/python -r backend/requirements.txt' in output
+    assert 'sk-test-only' not in output and 'Traceback' not in output
+
+
+def test_new_calendar_and_web_configuration_is_loaded_as_data(local_env):
+    local_env.write_text('CALENDAR_TOKEN_KEY=encrypted-test-only\nGOOGLE_CLIENT_ID=local-id\n'
+                         'GOOGLE_CLIENT_SECRET=local-secret\nCALENDAR_REDIRECT_BASE=http://127.0.0.1:8000\n'
+                         'PROACTIVE_SCHEDULER_ENABLED=false\nOPENAI_WEB_MAX_TOOL_CALLS=2\n')
+    env = launcher.load_environment(local_env, {})
+    assert env['CALENDAR_TOKEN_KEY'] == 'encrypted-test-only'
+    assert env['GOOGLE_CLIENT_SECRET'] == 'local-secret'
+    assert env['CALENDAR_REDIRECT_BASE'] == 'http://127.0.0.1:8000'
+    assert env['PROACTIVE_SCHEDULER_ENABLED'] == '0'
+    assert env['OPENAI_WEB_MAX_TOOL_CALLS'] == '2'

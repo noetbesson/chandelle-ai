@@ -47,7 +47,7 @@ export function discoverSections(records,options={}){
   const groups=new Map();
   for(const a of records){const key=String((options.demo?a.category:a.type)||'Autres idées');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(a);}
   return [...groups].map(([key,rows],i)=>{
-    const label=(options.demo?categoryLabels[key]:typeLabels[key.toLowerCase()])||key;
+    const label=(options.demo?categoryLabels[key]:typeLabels[key.toLowerCase()]||categoryLabels[key])||key;
     return `<section class="discover-section" aria-labelledby="${options.demo?'demo':'real'}-category-${i}"><div class="category-heading" data-reveal><h2 class="font-display" id="${options.demo?'demo':'real'}-category-${i}">${esc(label)}</h2><span>${rows.length} ${rows.length===1?'idée':'idées'}</span></div><div class="discover-list">${rows.map(a=>discoverActivityRow(a,{...options,label})).join('')}</div></section>`;
   }).join('');
 }
@@ -57,6 +57,6 @@ export function discoverPage({catalog,real,query,category,filterCategories,selec
     <div class="discover-caption"><span>${real.length} ${real.length===1?'idée à explorer':'idées à explorer'}</span><span>Les sorties du moment</span></div>
     <div class="discover-feed">${discoverSections(real)||'<div class="empty"><h2>Aucune idée ici, pour le moment.</h2><p>Essayez une autre envie ou une autre catégorie.</p></div>'}</div>
     <p class="discover-source-note">Ces pistes proviennent de sources publiques. Horaires, tarifs et disponibilité sont à confirmer auprès du lieu.</p>
-    <details class="discover-demo"><summary>Explorer les exemples de démonstration <span>${catalog.length}</span></summary><p class="muted">Ce catalogue fictif permet de tester la comparaison et la composition de programmes.</p>${compareBar()}${discoverSections(catalog,{demo:true,selectButton,scores})||'<p class="empty">Aucun exemple pour cette recherche.</p>'}</details>
+    ${catalog.length?`<details class="discover-demo"><summary>Explorer les exemples de démonstration <span>${catalog.length}</span></summary><p class="muted">Ce catalogue fictif permet de tester la comparaison et la composition de programmes.</p>${compareBar()}${discoverSections(catalog,{demo:true,selectButton,scores})||'<p class="empty">Aucun exemple pour cette recherche.</p>'}</details>`:''}
   </div>`;
 }

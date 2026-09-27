@@ -7,7 +7,6 @@ export function stopVoice(){
   if(!current)return;
   const closing=current;
   if(closing.sessionId&&ctx.identity()===closing.identity)ctx.api('/ask/chat/'+encodeURIComponent(closing.sessionId),{method:'DELETE'}).catch(()=>{});
-  current.closed=true;stopMeter(current);current.soundContext?.close().catch(()=>{});clearTimeout(current.timer);current.abort.abort();
   current.closed=true;current.deck?.destroy();stopMeter(current);current.soundContext?.close().catch(()=>{});clearTimeout(current.timer);current.abort.abort();
   current.recorder?.state==='recording'&&current.recorder.stop();
   current.stream?.getTracks().forEach(t=>t.stop());
@@ -70,25 +69,22 @@ function phase(s,value,text=labels[value]){
   recommend.disabled=s.starting||s.busy||value==='listening';
 }
 const status=(s,text)=>phase(s,'error',text);
-function panelMarkup(started=false,{cloud=false,web=false}={}){
+function panelMarkup(started=false){
   return `<div class="voice-stage">
     <button type="button" id="voice-orb" class="voice-candle" data-action="${started?'voice-orb':'voice-start'}" data-phase="${started?'thinking':'idle'}" aria-label="${started?'Chandelle réfléchit':'Commencer la conversation'}" ${started?'disabled':''}>${candleDrawing()}</button>
     <p id="voice-status" class="voice-status" role="status" aria-live="polite">${started?'':'Touchez la chandelle pour commencer'}</p><small id="voice-hint">${started?'':'Une envie, une question, une sortie à deux.'}</small>
     <div class="voice-actions" ${started?'':'hidden'}><button type="button" data-action="voice-recommend">Trouver des idées</button><button type="button" data-action="voice-restart">↻ Recommencer</button><button type="button" data-action="voice-close">Terminer</button></div>
     </div><p id="voice-mode" class="muted" role="status"></p>
-    <details class="voice-options"><summary>Options du dialogue</summary><div class="voice-consent"><label><input type="checkbox" id="voice-cloud" ${cloud?'checked':''}> Autoriser OpenAI à comprendre cet échange pour un dialogue libre.</label>
-    <label><input type="checkbox" id="voice-web" ${web?'checked':''}> Autoriser aussi une recherche web de sorties si utile.</label>
-    <small>Sans OpenAI : compréhension locale limitée. Les notes privées des profils ne sont pas envoyées. Le web reste soumis au quota du serveur.</small></div></details>
+    <small class="muted">Catalogue et recherche web activés pour trouver des adresses et leurs prix.</small>
     <div id="voice-suggestions" class="grid spaced"></div><div id="voice-web-results"></div><div id="voice-plans" class="grid spaced"></div>
     <details class="voice-text-option"><summary>Utiliser le clavier</summary><p id="voice-text-reply"></p><form id="voice-form"><label for="voice-text">Votre message</label><textarea id="voice-text" required maxlength="1500"></textarea><button type="submit">Envoyer</button></form></details>
-    <small class="voice-privacy">Le micro s’active au clic. Votre audio est transmis à Gradium. Échange privé qui expire après deux heures côté serveur, supprimé à la fermeture quand elle peut être transmise. Aucun apprentissage automatique ; programmes enregistrés pour le couple.</small>`;
+    <small class="voice-privacy">En parlant ou en envoyant un message, vous utilisez OpenAI pour comprendre l’échange et formuler les réponses. Les notes privées des profils ne sont pas envoyées. Le micro s’active au clic ; votre audio est transmis à Gradium. Échange privé qui expire après deux heures côté serveur, supprimé à la fermeture quand elle peut être transmise. Aucun apprentissage automatique ; programmes enregistrés pour le couple.</small>`;
 }
-function render(s,consent){if(live(s))document.querySelector('#voice-panel').innerHTML=panelMarkup(true,consent);}
+function render(s){if(live(s))document.querySelector('#voice-panel').innerHTML=panelMarkup(true);}
 async function startConversation(message=''){
   if(current?.starting)return;
-  const consent={cloud:!!document.querySelector('#voice-cloud')?.checked,web:!!document.querySelector('#voice-web')?.checked};
   stopVoice();const s=current={identity:ctx.identity(),revision:0,available:false,starting:true,abort:new AbortController()};
-  prepareSound(s);render(s,consent);phase(s,'thinking');
+  prepareSound(s);render(s);phase(s,'thinking');
   if(message){document.querySelector('#voice-text').value=message;document.querySelector('.voice-text-option').open=true;}
   try{
     const integrations=await ctx.api('/integrations');
@@ -120,9 +116,7 @@ export function suggestionCards(items){
 async function send(s,text,recommend=false){
   if(!live(s)||s.busy||s.starting)return;
   s.busy=true;stopMeter(s);if(s.audio){s.audio.onplaying=s.audio.onwaiting=s.audio.onended=s.audio.onerror=null;s.audio.pause();}
-  const cloud=!!document.querySelector('#voice-cloud')?.checked;
-  const web=cloud&&!!document.querySelector('#voice-web')?.checked;
-  const body={message:text,session_id:s.sessionId||null,revision:s.revision||0,recommend,cloud_consent:cloud,web_consent:web};
+  const body={message:text,session_id:s.sessionId||null,revision:s.revision||0,recommend,cloud_consent:true,web_consent:true};
   // Retry the same failed HTTP turn with the same ID; the server replays completed work.
   const fingerprint=JSON.stringify(body);
   if(s.pending?.fingerprint!==fingerprint)s.pending={fingerprint,id:globalThis.crypto.randomUUID()};
@@ -134,8 +128,7 @@ async function send(s,text,recommend=false){
     s.pending=null;s.sessionId=result.session_id;s.revision=result.revision;
     document.querySelector('#voice-text-reply').textContent=result.reply;
     document.querySelector('#voice-text').value='';
-    const failures={budget_limit_reached:'quota OpenAI atteint',authentication_failed:'configuration OpenAI à vérifier',provider_timeout:'OpenAI ne répond pas',model_not_budgeted:'modèle non autorisé par le quota'};
-    document.querySelector('#voice-mode').textContent=result.mode==='openai'?'Dialogue OpenAI · idées issues de sources réelles':`Mode local limité${result.fallback?' — '+(failures[result.fallback]||'OpenAI non activé ou indisponible'):''}. Cochez l’autorisation OpenAI pour une conversation libre si le serveur est configuré.`;
+    document.querySelector('#voice-mode').textContent=result.warning||(result.mode==='openai'?'Dialogue OpenAI · idées issues de sources réelles':'Chaque demande est traitée par OpenAI.');
     document.querySelector('#voice-suggestions').innerHTML=suggestionCards(result.suggestions||[]);
     document.querySelector('#voice-web-results').innerHTML=result.web?renderWebResult(result.web):'';
     document.querySelector('#voice-plans').innerHTML=(result.plans||[]).map(ctx.planCard).join('');
@@ -144,7 +137,13 @@ async function send(s,text,recommend=false){
     if(ctx.renderSearch&&result.run_id)s.deck=ctx.renderSearch(target,result);
     else target.innerHTML=(result.plans||[]).map(ctx.planCard).join('');
     await speak(s,result.reply);
-  }catch(e){if(live(s))status(s,e.message);}finally{if(live(s)){s.busy=false;phase(s,s.phase,document.querySelector('#voice-status').textContent);}}
+  }catch(e){
+    if(live(s)){
+      if(text){document.querySelector('#voice-text').value=text;document.querySelector('.voice-text-option').open=true;}
+      document.querySelector('#voice-mode').textContent='Le message n’a pas reçu de réponse. Vous pouvez le renvoyer.';
+      status(s,e.message);
+    }
+  }finally{if(live(s)){s.busy=false;phase(s,s.phase,document.querySelector('#voice-status').textContent);}}
 }
 export async function submitVoice(form){
   if(form.id!=='voice-form')return false;

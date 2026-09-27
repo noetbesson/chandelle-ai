@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 
 from backend.integrations.urls import public_url
 from backend.streams.C_discovery.import_normalize import fold, CUISINES
+from backend.streams.C_discovery.locations import matches_location
 
 BUNDLE = Path(__file__).with_name('data') / 'imported_catalog.jsonl.gz'
 IDF = {'75', '77', '78', '91', '92', '93', '94', '95'}
@@ -91,13 +92,15 @@ class ImportedCatalog:
         return {'records': len(rows), 'searchable': sum(is_active(r) for r in rows),
                 'sources': dict(Counter(r['source_name'] for r in rows))}
 
-    def search(self, query: str, categories=(), limit: int = 80, *, references: bool = False) -> list[dict]:
+    def search(self, query: str, categories=(), limit: int = 80, *, references: bool = False, location: str = '') -> list[dict]:
         """FTS tokenizer receives quoted words only, never raw user search syntax."""
         normalized = fold(query)
         tier = next((tier for pattern, tier in ((r'pas cher|economique|petit budget', 'budget'),
                     (r'haut de gamme|gastronomique|chic', 'upscale'), (r'prix moyen|gamme intermediaire', 'moderate'))
                      if re.search(pattern, normalized)), None)
         lexical = re.sub(r'pas cher|economique|petit budget|haut de gamme|gastronomique|chic|prix moyen|gamme intermediaire', '', normalized)
+        # Geography and budget are filters, not mandatory words in a venue description.
+        lexical = re.sub(r'\b(?:\d+(?:e|eme|er)|restos?|max|maximum|arrondissement|recommandations?|recos?)\b', '', lexical)
         tokens = [t for t in re.findall(r'[a-z0-9]+', lexical) if len(t) > 1 and t not in STOP and not t.isdigit()]
         tokens = list(dict.fromkeys(tokens))[:20]
         if 'nightlife' in categories and len(tokens) > 1:
@@ -130,9 +133,16 @@ class ImportedCatalog:
         if not references:
             sql += " AND json_extract(payload,'$.eligibility')='candidate' AND (json_extract(payload,'$.end_date') IS NULL OR json_extract(payload,'$.end_date')>=?)"
             args.append(datetime.now(ZoneInfo('Europe/Paris')).date().isoformat())
+        if location:
+            sql += ' AND chandelle_location(payload)=1'
         sql += " ORDER BY relevance,json_extract(payload,'$.id') LIMIT ?"
         args.append(min(max(limit, 1), 200))
         with self.db.connect() as c:
+            if location:
+                def in_area(payload):
+                    row = json.loads(payload)
+                    return int(matches_location(location, row.get('address') or row.get('city') or ''))
+                c.create_function('chandelle_location', 1, in_area)
             found = [json.loads(r[0]) for r in c.execute(sql, args)]
         return [{**r, '_query_rank': i} for i, r in enumerate(found) if references or is_active(r)]
 

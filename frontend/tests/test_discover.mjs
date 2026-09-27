@@ -26,6 +26,6 @@ assert.match(demo,/Exemple fictif/);assert.match(demo,/data-action="activity" da
 const page=discoverPage({real:records,catalog:[],query:'"><svg>',category:'culture',filterCategories:['culture','concerts'],selectButton:()=>'',compareBar:()=>''});
 assert.match(page,/id="discover"/);assert.match(page,/name="query"/);assert.match(page,/name="category"/);
 assert.match(page,/value="culture" selected/);assert.doesNotMatch(page,/value="food"|<svg>/);
-assert.ok(page.indexOf('discover-feed')<page.indexOf('discover-demo'));
+assert.doesNotMatch(page,/discover-demo/,'No fictional section when the database has no demo records');
 assert.doesNotMatch(page,/<details class="discover-demo" open/);
 console.log('Discover presentation PASS: real categories, stable records/order, actual dates/prices, escaping, safe images/sources, demo actions and unchanged filter fields.');

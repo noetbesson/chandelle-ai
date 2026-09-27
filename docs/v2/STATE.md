@@ -635,3 +635,119 @@ strict et tests cartes PASS. Parcours réel du bundle dans Edge 375 px, sans app
 externe, validé sur Discover/Ask et garder/vue d’ensemble. Détails TEST_MATRIX.
 Pas de commit ni push. Reprise : actualiser les exports ou vérifier les horaires,
 coordonnées et budget complet avant de rendre ces pistes composables.
+
+## Réparation du démarrage après PR #7 — 27 septembre 2026
+
+Sur le checkout macOS main (8d3a55c), le pull avait ajouté les dépendances calendrier
+sans les installer dans le venv. Installation du requirements.txt avec uv (pip
+absent de ce venv), ainsi que TypeScript 5.9.3 pour les vérifications frontend.
+Le lanceur contrôle maintenant les versions déclarées avant de lire le .env et
+indique la commande de mise à jour. Les variables calendrier/proactivité et limites
+web ajoutées dans main sont prises en charge par son allowlist, sans shell eval.
+
+La résolution des conflits contenait deux méthodes query imbriquées, deux blocs
+de requête web collés, des imports/déclarations JS doubles, et un second app.state
+qui retirait le dialogue. Réconciliation des deux fonctionnalités : pipeline des
+cartes importées/web conservé, adaptateur de composition vocale à candidats explicites,
+statut unique intégrations avec calendrier/catalogue/dialogue, navigation Ask / Discover /
+Settings et contrôles calendrier conservés. Le lecteur de fichier supprimé est remplacé
+par la base publique existante pour les suggestions vocales et la liste Discover.
+Provenance réelle préservée ; horaires proposés jamais transformés en horaires publiés.
+Le script d'initialisation explicite importe le bundle réel, sans profil fictif.
+
+Validation : suite complète **374 passed, 13 skipped in 56.77s**, toutes suites
+Node, contrat Python/TypeScript, compilation TS et parcours API réussis. Dernier
+ajustement du contexte d'identité calendrier : suites UI et calendrier relancées,
+PASS. Test réel avec run_voice.sh sur 127.0.0.1:8316, base de test existante isolée,
+fournisseurs et proactivité désactivés : Ask initial, demande japonaise → trois
+adresses du bundle, Discover → liste et recherche, Settings → calendrier ; aucune
+erreur console. .env vérifié en mode masqué, jamais modifié ni envoyé. Pas de test
+micro ni d'appel fournisseur payant. Base personnelle et suppression locale antérieure
+de .env.example préservées. Corrections locales sur main, sans commit ni push.
+
+## Ask/OpenAI systématique et tests rapides — 27 septembre 2026
+
+Checkout main 8d3a55c confirmé, modifications précédentes conservées. Ask envoie
+chaque demande voix/clavier à OpenAI sans case d'activation. Gradium garde STT/TTS ;
+OpenAI analyse l'intention puis explique les résultats réellement récupérés dans
+le catalogue. Les questions sur les fiches précédentes restent un seul appel.
+La case web est conservée séparément. Le lanceur vocal active OpenAI/Gradium par
+défaut quand leurs flags sont absents ; les flags explicites à 0 sont respectés.
+
+Plus de repli local silencieux pour les tours cloud : erreur 503 lisible et retry
+explicite. Message/transcription conservé à l'écran ; session initiale échouée
+supprimée, révision inchangée. La seconde passe peut conserver les cartes avec un
+avertissement si OpenAI échoue. Tests d'isolation, IDs invalides, reprise et quotas
+adaptés au contrat. Mode local conservé uniquement pour les anciens clients qui
+n'autorisent pas le cloud. Aucun changement de données personnelles ni du .env.
+
+Diagnostic réel : clé acceptée avec gpt-4.1-mini ; réserve utilisateur lue sans
+écriture (0 appel enregistré), donc aucun blocage quota observé sur cette base.
+Le défaut observé dans le code était l'opt-in non automatique et le remplacement
+de la réponse après recherche par une phrase fixe. Deux essais complets réels,
+avec personnes synthétiques/base temporaire, obtiennent trois restaurants japonais
+sourcés puis une comparaison, en conservant le budget 80 EUR. Après le premier,
+consignes resserrées contre les extrapolations de réputation/ambiance depuis les notes.
+Le second compare notes/gammes en signalant les prix exacts inconnus. Pas de test
+réel Gradium/micro, ni web payant. Le script live est explicitement séparé des tests.
+
+check.sh rapide par défaut : 23 tests Python essentiels + frontend/TS/parcours API,
+mesuré 9,45 s total. --ask sélectionne 82 tests ; --full conserve tous les scénarios.
+Doublons d'invocation Node supprimés. Deux tests historiques échouaient après
+18h30 car le fournisseur simulé fixait toutes les activités à 19h ; ancrage dans
+le créneau demandé corrigé. Gate final --full : 378 passed, 13 skipped, 57,02 s
+Python et 64,29 s total, frontend/TS/API PASS. Ne pas relancer ce gate à chaque
+petite modification. Navigateur sur base test/port8316 : case supprimée, erreur
+OpenAI visible et texte conservé, aucune erreur console. Serveur test arrêté.
+Corrections locales, aucun commit/push effectué.
+
+## Diagnostic Ask : recherche Paris 14 / 40 EUR — 27 septembre 2026
+
+Reproduction sur base jetable : les 7 760 restaurants importés n'ont pas d'adresse
+précise, donc aucun ne peut être honnêtement localisé dans le 14e. Le vocabulaire
+« resto/max » et le filtre Paris 14 vs 75014 vidaient aussi les candidats. Surtout,
+H lisait la note web mais ne transformait pas ses activités structurées en fiches.
+Correction : normalisation géographique, recherche locale avant limite, adaptateur
+web vers les mêmes filtres/cartes et activation automatique dans Ask.
+
+Trois essais réels d'une seule recherche n'ont pas validé le résultat souhaité :
+2 fiches compatibles ; puis 3 fiches mais erreur sémantique de prix individuel
+étiqueté couple ; enfin 1 fiche compatible après correction des unités. Aucun de
+ces essais n'est retenu comme validation finale. Repli d'architecture : une seconde
+recherche bornée après le filtrage effectif, avec noms déjà examinés, même budget
+et même zone. Les erreurs de quota préservent les résultats déjà acquis. Le prix
+restaurant couple ambigu devient inconnu dans Ask ; aucune division implicite.
+Tests ciblés après cette évolution : 43 passed in 9.36s, réseau interdit.
+
+### Validation et état final
+
+Web automatique sans case ni confirmation orale ; objectif quatre adresses, avec
+complément si résultats insuffisants ou prix inconnus. Les prix inconnus ne doivent
+pas être annoncés compatibles : le modèle reçoit un résumé budget_check calculé.
+La comparaison garde les cartes et élimine les IDs inutilisés mal recopiés ; une
+planification conserve le rejet des sélections inconnues.
+
+Gate complet : 389 passed, 13 skipped in 55.98s ; derniers ajustements validés par
+le gate Ask : 109 passed in 15.91s, frontend/TS/API PASS. Le smoke réel Paris 14 /
+40 EUR a trouvé trois adresses puis comparé les résultats dans le même échange.
+Deux prix connus, un inconnu : pas trois prix garantis. Contrôle de formulation
+réel séparé après renforcement du contexte budget : distinction correcte en
+présentation et comparaison. Voir TEST_MATRIX.md pour les limites exactes.
+
+Serveur local du checkout redémarré sur http://127.0.0.1:8000 avec run_voice.sh ;
+recharger l'onglet pour charger le nouveau JavaScript. Branche main conservée,
+changements locaux non commités/poussés, suppression utilisateur de .env.example
+préservée. .env non modifié et non suivi. Les sessions et profils personnels n'ont
+pas été remplacés par les fixtures des vérifications.
+
+## Préparation de l'envoi sur main demandé — 27 septembre 2026
+
+Demande explicite de pousser les corrections sur GitHub/main : elle autorise ce
+commit et ce push malgré la consigne générale du dépôt de ne pas publier. Remote
+vérifié : chandelle-ai → noetbesson/chandelle-ai ; main local et distant au même
+commit 8d3a55c avant le nouveau commit. Aucune fusion ni réécriture nécessaire.
+Contrôle complet avant envoi : 390 passed, 13 skipped in 57.70s ; frontend, contrat
+TypeScript, parcours API et diff PASS. Les 35 changements ont été inspectés pour
+les clés locales et clés privées sans exposer leurs valeurs ; .env reste ignoré.
+Le serveur lancé par l'agent a depuis été arrêté à la demande de l'utilisateur,
+qui le démarre maintenant depuis son propre terminal avec run_voice.sh.

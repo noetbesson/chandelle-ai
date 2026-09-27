@@ -73,6 +73,9 @@ ui=await boot({couple_id:'c',members,active:'a'},{
   '/api/v2/onboarding/status?couple_id=c':{completed:true,members},
   '/api/v2/integrations':{}, '/api/v2/health':{},
   '/api/v2/availability':{mode:'manual',own_slots:[],common_slots:[]},
+  '/api/v2/calendar/status':{providers:{google:false,outlook:false}},
+  '/api/v2/proactive/settings':{scheduler:{}},
+  '/api/v2/calendar/sync':{},
   '/api/v2/inspirations':{items:[]},
   '/api/v2/memories?scope=PERSON&entity_id=a':{items:[]},
   '/api/v2/profiles/PERSON/a':{}, '/api/v2/history':{items:[]},
@@ -103,6 +106,11 @@ for(const [route,content] of [['availability',/calendar-import/],['inspirations'
  assert.match(ui.app.innerHTML,/data-route="settings" class="active"/);
  assert.match(ui.app.innerHTML,/← Settings/);
  assert.match(ui.main.innerHTML,content);
+ if(route==='availability'){
+   await ui.click('calendar-sync');
+   assert.equal(ui.calls.find(c=>c.url==='/api/v2/calendar/sync').options.headers['X-Member-Token'],'token-a');
+   assert.match(ui.main.innerHTML,/calendar-import/);
+ }
  await visit('settings');
 }
 await visit('planner');assert.match(ui.main.innerHTML,/id="ask"/);

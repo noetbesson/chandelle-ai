@@ -105,7 +105,9 @@ class OpenAIAdapter:
         if isinstance(exc,BudgetDenied):return str(exc)
         code=getattr(exc,'status_code',None)
         if code in (401,403):return 'authentication_failed'
+        if code==429 and getattr(exc,'code',None)=='insufficient_quota':return 'provider_quota_exhausted'
         if code==429:return 'provider_rate_limited'
+        if code in (400,404,422):return 'provider_request_rejected'
         if isinstance(exc,TimeoutError) or 'Timeout' in type(exc).__name__:return 'provider_timeout'
         return 'provider_unavailable_or_invalid_output'
 

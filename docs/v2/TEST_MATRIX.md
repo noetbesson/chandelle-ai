@@ -750,3 +750,117 @@ Tests de code avec données synthétiques :
 
 Limites : tarifs et offres proviennent du fichier fourni, pas d’une consultation
 actuelle de MisterGoodBeer. Aucun appel payant pour ces validations.
+
+## Démarrage macOS après fusion PR #7
+
+- Inventaire : cinq distributions directes absentes (cryptography, Google OAuth,
+  client Google API, msal, APScheduler). `uv pip install --python .venv/bin/python
+  --cache-dir /tmp/chandelle-uv-cache -r backend/requirements.txt` réussi ;
+  `uv pip check --python .venv/bin/python --cache-dir /tmp/chandelle-uv-cache`
+  → 64 distributions compatibles. TypeScript installé depuis frontend/package.json.
+- Première suite après réparation syntaxique : 366 passed, 4 failed, 13 skipped.
+  Échecs d'intégration corrigés : initialiseur sans import réel, source du programme
+  vocal, deux contrats de tests de calendrier désormais spécifiques à la composition.
+- Ciblé : test_initializer + test_dialogue + test_local_launcher → 43 passed in 13.01s.
+  Nouvelles régressions merged_runtime + lanceur → 17 passed in 1.11s.
+- `bash scripts/check.sh` → **374 passed, 13 skipped in 56.77s**, toutes les suites
+  frontend, TypeScript strict, contrat généré, parcours API, syntaxe et diff PASS.
+  Après l'ajout du contexte d'identité au contrôleur calendrier :
+  `node frontend/tests/test_ui.mjs` et `node frontend/tests/test_calendar.mjs` PASS.
+- `bash scripts/run_voice.sh --check-env` → trois valeurs renseignées, aucun secret
+  affiché. Aucun appel fournisseur pour ce diagnostic.
+- Serveur réel lancé par run_voice.sh avec base de test isolée, port 8316, OpenAI,
+  Gradium et scheduler désactivés. Navigateur IAB : affichage Ask, recherche clavier
+  « Un restaurant japonais à Paris » → Kintaro, sumo, Yaki Shop avec sources ;
+  Discover/recherche → 100 fiches ; Settings et disponibilité/calendrier accessibles ;
+  console sans erreur. Conversation de test terminée explicitement.
+- Pas de vérification des API payantes ni du micro physique lors de ce dépannage.
+
+## Ask automatique, sources et vérifications proportionnées
+
+- `bash scripts/check.sh` : 23 passed in 2.46s pour Python ; toutes suites Node,
+  contrat TS, compilation, parcours API et diff PASS. Temps total mesuré 9.45s.
+  C'est désormais le mode quotidien, équivalent à --quick. Deux invocations
+  doublonnées UI/experiences supprimées, aucun scénario utile supprimé.
+- `bash scripts/check.sh --ask` : 82 passed in 11.35s, suites frontend/TS/API PASS.
+  Les derniers ajustements (transcription récupérable et nettoyage d'ouverture
+  échouée) sont inclus dans le gate complet final ci-dessous.
+- Premier gate complet : 376 passed, 2 failed, 13 skipped. Diagnostic : les tests
+  legacy voix et suggestion proactive utilisaient un fournisseur fictif toujours
+  fixé à 19h, avant le créneau demandé quand le lancement dépasse 18h30. Le double
+  de test choisit maintenant max(19h, début demandé + 15 min). Aucun contournement
+  d'une contrainte métier ni suppression d'assertion. Une incompatibilité du tableau
+  Bash vide avec set -u sur macOS a également été corrigée dans le mode --full.
+- Gate final `bash scripts/check.sh --full` : **378 passed, 13 skipped in 57.02s** ;
+  toutes suites Node, TypeScript strict, contrat généré, parcours API, syntaxe et
+  diff PASS. Total 64.29s. Réseau bloqué pendant ces trois modes.
+- Scénarios ajoutés/renforcés : second appel reçoit les fiches fraîchement trouvées
+  sans notes privées ; IDs inconnus rejetés ; reformulation indisponible conserve
+  les résultats avec warning et rejoue sans appel ; premier appel échoué ne fait
+  pas avancer la session ; désactivation serveur visible ; activation launcher
+  avec seulement les trois clés ; transcription récupérable après panne OpenAI.
+- Diagnostic fournisseur réel : un appel structuré initial réussi, puis deux
+  exécutions de `RUN_LIVE_OPENAI_SMOKE=1 .venv/bin/python scripts/live_ask_smoke.py`.
+  Les deux passent : demande japonaise à Paris/80 EUR → trois fiches sourcées,
+  puis comparaison dans la même session avec budget conservé, mode=openai.
+  Après la première, consignes renforcées contre les déductions sur la réputation.
+  Données synthétiques, SQLite temporaire, aucune mémoire personnelle transmise,
+  aucun appel Gradium/web. Pas de log de clé. Modèle configuré gpt-4.1-mini.
+- Navigateur IAB, serveur réel run_voice.sh, base de test existante sur 8316,
+  OpenAI/Gradium volontairement désactivés : pas de checkbox cloud, notice visible,
+  saisie déclenche automatiquement le chemin cloud → erreur explicite 503,
+  texte conservé et fermeture remet la chandelle. Console sans erreur ; serveur
+  de test arrêté. Le micro physique et Gradium réel restent non vérifiés ici.
+
+## Ask, résultats web et Paris 14 — 27 septembre 2026
+
+- Reproduction isolée avec le bundle réel : « resto paris 14 budget 40€ max »
+  retournait zéro résultat local ; 7 760 restaurants importés sans adresse précise.
+  Les réponses web structurées n'étaient pas transformées en cartes dans H.
+- Premiers tests ciblés : 105 passed in 14.63s ; une assertion frontend trop large
+  confondait l'ancienne case voice-web avec voice-web-results. Corrigée en ciblant
+  l'attribut id exact, puis test_voice.mjs PASS.
+- Après complément borné et validation des prix :
+  `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/test_offline.py backend/tests/test_ask_retrieval.py backend/tests/test_dialogue.py`
+  → 43 passed in 9.36s.
+- Gate transversal `bash scripts/check.sh --full` → **389 passed, 13 skipped in
+  55.98s** ; toutes suites Node, TypeScript strict, contrat généré, parcours API et
+  diff PASS. Un seul gate complet après la modification transversale.
+- Derniers ajustements (comparaison sans sélection exécutée, complément pour prix
+  manquants et contexte budget_check) : `bash scripts/check.sh --ask` → **109 passed
+  in 15.91s**, toutes suites frontend/TS/API/syntaxe/diff PASS. Le gate complet
+  précédent ne comprend pas le dernier scénario ajouté de comparaison ; ce
+  scénario et ses changements sont vérifiés dans le gate ciblé final.
+- Couverture : Paris 14/14e/14ème/XIV/75014 et numéro de rue distinct ; filtrage
+  avant les 200 candidats ; mots « resto/max » ; quatre cartes web avec sources,
+  persistance, localisation, déduplication et budget ; 17 EUR/personne → 34 à deux,
+  31 EUR/personne rejeté sous 40 ; unité couple ambiguë → inconnu dans Ask ; cache
+  séparé pour le complément et le contrat legacy ; échec du complément garde les
+  premières cartes ; comparaisons tolèrent un ID inutilisé mal recopié, plans non.
+- Live explicitement activé par RUN_LIVE_OPENAI_SMOKE=1, SQLite jetable, personnes
+  synthétiques, sans Gradium : les trois essais initiaux à une seule recherche
+  ne validaient pas le cas (deux cartes, puis prix mal étiquetés, puis une carte).
+  Après complément : quatre cartes mais deuxième tour refusé pour sélection
+  mal recopiée. Après correction : `scripts/live_ask_smoke.py --web` PASS, trois
+  adresses dans le 14e et comparaison conservant le budget. Deux tarifs connus,
+  une piste sans prix. Aucune donnée personnelle utilisée.
+- L'inspection du texte réel a encore identifié une introduction trop générale
+  sur le budget. Ajout du contexte budget_check calculé par le backend et consignes
+  pour les deux types de réponse. Contrôle réel distinct, deux appels OpenAI avec
+  trois lieux fictifs et prix 9/14,5/inconnu : présentation ET comparaison distinguent
+  bien deux tarifs compatibles (18 et 29 à deux) et une piste à vérifier. Ce contrôle
+  de formulation n'est pas une vérification des prix commerciaux.
+- `bash scripts/run_voice.sh --check-env` : trois valeurs renseignées, OpenAI/web/
+  Gradium activés ; valeurs masquées, .env ignoré et non suivi. Ancien serveur du
+  checkout confirmé sur 8000, arrêté proprement puis relancé par run_voice.sh.
+  Le test physique du microphone/Gradium n'a pas été refait ; même pipeline texte.
+
+## Contrôle avant push main demandé — 27 septembre 2026
+
+`bash scripts/check.sh --full` → **390 passed, 13 skipped in 57.70s** ; toutes les
+suites frontend, TypeScript strict, contrat généré, parcours API, syntaxe et diff
+PASS. Ce gate inclut les derniers changements de comparaison et budget_check.
+Réseau interdit pendant la suite ; aucun appel payant supplémentaire.
+Inspection des 35 changements : aucune valeur des clés locales ni clé privée
+détectée ; .env ignoré et non suivi. Main distant récupéré depuis chandelle-ai,
+sans divergence avec la base locale 8d3a55c avant commit.
