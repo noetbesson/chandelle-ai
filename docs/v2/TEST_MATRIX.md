@@ -541,3 +541,82 @@ appel payant OpenAI ; ces validations ne prouvent pas la connexion d'un compte.
   appel payant. Serveur temporaire 8332 arrêté après le test.
 - `git diff --check` : PASS. Les nouvelles vérifications sont ciblées sur le delta
   du cache ; la suite complète précédente avait 313 tests passants.
+## Contrôle réel Gradium après redémarrage, 27 septembre 2026
+
+- GET local `/api/v2/integrations` : enabled/configured/available=true ; schéma
+  OpenAPI : `/api/v2/voice/transcribe` et `/api/v2/voice/speak` présents.
+- Smoke manuel `RUN_LIVE_GRADIUM_SMOKE=1`, même GradiumAdapter et `.env` serveur :
+  TTS puis STT réels réussis sur « Bonjour. Une balade à Paris. » (phrase fictive).
+  Audio 2,56 s / mono / 48 kHz ; transcription 28 caractères, Paris reconnu.
+  Deux TTS et un STT : première vérification locale bloquée par la longueur WAV
+  indéterminée du flux, puis en-tête finalisé en mémoire pour tester le STT.
+- Résumé sans clé dans `.runtime/gradium-live-smoke.json`. Aucun contenu personnel,
+  pas de nouvelle suite de régression (code inchangé), pas de test micro physique.
+
+## Validation des sources Excel, 27 septembre 2026
+
+Données réelles, sans appels réseau :
+- Lecture des sept fichiers avec openpyxl 3.1.5 du runtime ; 8 633 lignes source,
+  162 doublons, 8 471 fiches, aucune chaîne Unicode de remplacement.
+- Script import_activity_workbooks.py : export 482 676 octets ; import complet
+  dans la base de vérification puis base existante. Réimport unchanged=true.
+- FTS réel : japonais/café/dessert/italien retournent des fiches en environ
+  7 à 10 ms sur cette machine (échantillon, pas un benchmark).
+- Serveur local relancé, HTTP 200 et catalog imported_and_web, 8 471 fiches,
+  7 971 éligibles, Gradium toujours disponible. 42 faits personnels préservés.
+- Edge 375 px sur base isolée contenant le bundle réel, sans fournisseurs :
+  Discover japonais (50 cartes), Ask café, sources/gammes, garder, vue d'ensemble
+  et conservation de sélection, aucun débordement horizontal ni erreur JS.
+  Preuves .runtime/import-browser.txt et import-card-mobile.png. Serveur de
+  contrôle 8334 arrêté. Aucun appel OpenAI, Gradium ou source tierce pour l'import.
+
+Tests simulés et régressions :
+- test_imported_catalog.py couvre identité/provenance, prix inconnus, dates
+  ambiguës, films distincts des séances, FTS, reprise, mise à jour, rollback,
+  expiration, refus, API privée, panne web et shortlist, enrichissement web
+  sans double carte (domaine/slug modifié), composition et reset FTS.
+- Première suite ciblée : 1 échec (déduplication trop tôt, trace modifiée),
+  corrigé puis 27 passed.
+- Suite Python complète : 333 passed, 1 échec sur l'ordre historique des traces
+  quand le catalogue importé est vide, 212,34 s. Corrigé en conservant cet ordre
+  si aucun import pertinent. Contrôle ciblé final après toutes corrections :
+  `python scripts/test_offline.py backend/tests/test_imported_catalog.py
+  backend/tests/test_web_pipeline.py
+  backend/tests/test_api.py::test_complete_lifecycle_review_photo_memory_suggestion_and_reopen
+  --tb=short --basetemp .runtime/import-final-proof` : **30 passed in 40.54s**.
+  Ne pas présenter la première suite complète comme intégralement verte.
+- Toutes les suites frontend/tests/test_*.mjs exécutées : PASS ; ActivityCard et
+  test_ai relancés après les textes/imports : PASS. TypeScript strict et contrat
+  généré : PASS. verify_frontend_api.py : PASS.
+
+Limites : pas de vérification live des fiches externes ; les métadonnées de
+collecte sont inconnues. L'enrichissement web/composition a été testé avec
+fournisseur simulé ; les originaux n'ont pas été modifiés.
+
+## Validation Bar.xlsx, 27 septembre 2026
+
+Données réelles, sans fournisseur externe :
+- Huit Excel normalisés par scripts/import_activity_workbooks.py : 8 793 lignes
+  valides, 8 631 fiches uniques, 162 doublons, 267 lignes non pertinentes, quatre
+  conflits conservés inconnus. Bar.xlsx : 160/160 lignes utiles, aucun doublon.
+- Bundle 495 119 octets pour 1 758 572 octets d’Excel ; delta bars +12 443 octets.
+- SQLite utilisateur : 160 bars et 160 lignes FTS, rechargement unchanged=true.
+  Aucun ancien enregistrement mis à jour ; total 8 631, éligibles 8 131.
+- Edge 375 px, bundle réel et profils synthétiques dans une base de test séparée :
+  Discover « bar terrasse » affiche 50 cartes MisterGoodBeer, aucun tag « Pas de
+  terrasse », prix par pinte distinct du budget inconnu. Garder puis vue d’ensemble
+  conservent la sélection. Ask « bar karaoké » rend des cartes de la même chaîne.
+  Aucun appel fournisseur, débordement horizontal ou erreur JS. Preuves locales :
+  .runtime/bar-browser.txt, bar-card-mobile.png, bar-mobile.png. Serveur test arrêté.
+
+Tests de code avec données synthétiques :
+- `python scripts/test_offline.py backend/tests/test_imported_catalog.py
+  backend/tests/test_web_pipeline.py --tb=short --basetemp .runtime/bar-tests`
+  : 32 passed in 34.18s. Inclut les prix/unités, adresse IDF, validation du domaine,
+  déduplication, recherche terrasse et projection API sans fausse disponibilité.
+- Génération scripts/generate_date_contract.py, compilation TypeScript stricte : PASS.
+- `node frontend/tests/test_activity_cards.mjs` : PASS, dont échappement des
+  conditions et absence de prix par personne déduit d’une pinte.
+
+Limites : tarifs et offres proviennent du fichier fourni, pas d’une consultation
+actuelle de MisterGoodBeer. Aucun appel payant pour ces validations.

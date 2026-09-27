@@ -337,3 +337,35 @@ Les pages /, /app, /installer, /partager, /sw.js et les fichiers HTML/JS/MJS/CSS
 sous /v2-static sont servis avec Cache-Control: no-store. Les requêtes
 conditionnelles reçoivent le contenu actuel (200). Le cache du service worker
 est réservé aux icônes publiques. Contrats API et stockage utilisateur inchangés.
+
+## Extension des sources importées, 27 septembre 2026
+
+`v2_activities` conserve son contrat id/payload. Les imports portent
+provider=user_import, source_name/source_id/source_url, kind=place|film|article,
+eligibility, provenance=[[fichier,onglet,ligne]], imported_at, source_observed_at
+et last_verified_at. Les champs absents restent null ; availability=unknown.
+`v2_activity_search` est l'index FTS5 de ces mêmes IDs ; `v2_catalog_imports`
+stocke bundle/digest/summary/imported_at. Les fichiers d'import sont locaux au
+serveur et aucune route publique d'upload de catalogue n'est ajoutée.
+
+`ActivityChoice` ajoute price_tier (budget|moderate|upscale|null), city,
+source_name, source_kind (import|web), imported_at et description. Prix, dates
+et composable conservent leurs règles. Les nouveaux champs sont facultatifs
+pour les consommateurs antérieurs. Les contrats TS et JSON Schema sont régénérés.
+
+`GET /api/v2/integrations` annonce catalog.mode=imported_and_web, records,
+searchable, sources (comptages publics). Toutes les recherches de cartes
+restent sur les routes existantes. Traces import_search/import_<filtre> et
+source_merge complètent parse/web_search/filtrage/composition. mode=offline
+autorise maintenant les imports pertinents sans appel fournisseur ; sans données
+importées disponibles, la réponse indisponible antérieure reste explicite.
+
+## Extension Bar.xlsx, 27 septembre 2026
+
+Source supplémentaire `mistergoodbeer`, identifiant stable `mistergoodbeer:<slug>`,
+kind=place, category=nightlife. L’adresse source et sa commune/code département
+francilien sont conservés. `ActivityChoice` ajoute deux champs optionnels :
+`pint_price_from_eur` (0 à 100 ou null) et `offer_note` (texte ou null).
+Ils décrivent l’export, jamais le prix par personne ou une offre actuelle vérifiée.
+`price_per_person`, horaires, coordonnées exactes et disponibilité restent inconnus.
+La déduplication web reconnaît aussi les URLs de réservation du même bar.

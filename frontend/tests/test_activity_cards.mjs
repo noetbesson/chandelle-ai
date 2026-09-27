@@ -22,3 +22,12 @@ assert.throws(()=>new ActivityState([mockActivities[0],mockActivities[0]]),/inva
 console.log('Activity cards PASS: individual keep/pass, shared view state, >3 selections, time/travel warnings, five-minute margin, escaping and synthetic fixtures.');
 
 assert.doesNotMatch(ActivityCard({...mockActivities[0],start:null,end:null,schedule_status:"published"}),/Dates publiées/);
+const imported=ActivityCard({...mockActivities[0],demo:false,start:null,end:null,price_per_person:null,price_tier:'budget',source_kind:'import',source_name:'tripadvisor',city:'Paris',address:'',checked_at:null,rating:4.5});
+assert.match(imported,/Gamme économique/);assert.match(imported,/montant en euros inconnu/);
+assert.match(imported,/Tripadvisor, fiche importée/);assert.match(imported,/dans l’export/);
+assert.doesNotMatch(imported,/consultée le|Dates publiées/);
+const bar=ActivityCard({...mockActivities[0],demo:false,start:null,end:null,price_per_person:null,source_kind:'import',source_name:'mistergoodbeer',category:'nightlife',pint_price_from_eur:3.3,offer_note:'Avant 20h <script>test</script>',address:'25 Rue de Lappe, 75011 Paris',checked_at:null});
+assert.match(bar,/MisterGoodBeer, fiche importée/);assert.match(bar,/Pinte à partir de/);
+assert.match(bar,/Tarif indiqué dans l’export/);assert.match(bar,/Offre et conditions non vérifiées/);
+assert.match(bar,/Prix inconnu/);assert.match(bar,/25 Rue de Lappe/);
+assert.doesNotMatch(bar,/<script>|\/ pers\./);

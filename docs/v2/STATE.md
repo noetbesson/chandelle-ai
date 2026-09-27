@@ -437,3 +437,81 @@ Edge mobile passent ; fournisseur simulé uniquement. Les 313 tests de la fusion
 précédente restent sa référence complète, sans prétendre à une nouvelle exécution
 intégrale pour ce delta de cache. Le lancement Windows doit être redémarré pour
 charger la nouvelle politique HTTP. Configuration Gradium inchangée.
+## Gradium chargé et vérifié en réel, 27 septembre 2026
+
+Après ajout des accès par l'utilisateur, le `.env` racine était renseigné mais
+le serveur 8000 tournait encore avec l'ancienne application, sans état Gradium ni
+routes vocales. Seul ce processus Chandelle, identifié avec son parent dans le
+venv du projet, a été relancé via scripts/run_ai.ps1. État HTTP après relance :
+Gradium enabled/configured/available=true, routes transcribe/speak présentes.
+
+Essai réel autorisé par le dépannage : synthèse d'une phrase fictive puis
+transcription de l'audio généré, réussies. WAV réel de 2,56 s, mono 48 kHz,
+transcription non vide avec Paris reconnu. Aucun audio ni texte utilisateur
+envoyé. Deux appels TTS et un STT au total : le premier WAV avait un en-tête de
+streaming à longueur inconnue, finalisé pour le second essai avant le contrôle
+strict STT. Aucune modification du connecteur nécessaire. Preuve sans secrets :
+`.runtime/gradium-live-smoke.json`. Facturation fournisseur non mesurée.
+
+Reprise : recharger l'onglet local puis tester le microphone du navigateur. Ce
+contrôle serveur prouve STT/TTS, pas l'autorisation micro ni la lecture sur chaque
+téléphone. Aucun changement de code ou de secret, aucun nouveau push.
+
+## Sources Excel nettoyées et intégrées, 27 septembre 2026
+
+Les sept exports fournis ont été lus sans modifier les originaux. 8 633 lignes
+de données donnent 8 471 fiches uniques après 162 doublons fusionnés :
+7 760 lieux Tripadvisor, 105 films AlloCiné, 606 articles Sortiraparis.
+267 lignes sans fiche utile (dont trois boutons « Keep on planning ») sont
+écartées ; quatre contradictions de prix/note/compteur restent inconnues.
+Archive normalisée : 482 676 octets contre 1 720 657 octets d'Excel (71,9 %
+de réduction du livrable). Les JSON décompressés font 5,21 Mo ; SQLite avec
+payloads et index prend environ 14,55 Mo sur la base de vérification vide.
+Ces chiffres ne comparent donc pas la taille de SQLite à celle des Excel.
+
+Le lancement normal charge le bundle par empreinte dans v2_activities ;
+FTS5 et registre d'import sont dans la même SQLite. Aucune deuxième base
+de production ni catalogue fictif. Au 27 septembre, 7 971 pistes éligibles ;
+500 références ou fiches expirées/annulées/non localisées restent stockées
+sans devenir des cartes de sorties. Les séances datées AlloCiné restent
+à rechercher : une date de sortie nationale n'est pas une séance francilienne.
+
+Ask, Discover et le dialogue réutilisent PlanningService. Recherche locale
+indexée, mêmes refus/budgets/contrôles B, puis recherche web si manque de choix
+ou besoin d'informations datées, guidée par huit références publiques maximum.
+Les pannes web ne masquent pas les fiches utilisables. Les gammes ne deviennent
+pas des euros et l'import ne vaut pas vérification. Les cartes restent gardables ;
+la composition demande toujours les informations de planification requises.
+
+Validation réelle : bundle chargé dans .runtime/chandelle_v2.sqlite3, relance
+8000, GET integrations annonce imported_and_web avec 8 471/7 971 fiches.
+La répétition de l'import retourne unchanged=true. Les 42 faits personnels
+sont conservés. Contrôle de trois couples existants, sans mutation : pour
+« restaurant japonais », deux profils conservent 80 pistes, le troisième
+en exclut 80 via explicit_exclusions. Aucun refus existant n'a été effacé.
+
+Parcours Edge mobile 375 px avec les vrais imports dans une base de test :
+Discover/Ask, 50 cartes, garder, vue d'ensemble, sélection préservée, zéro appel
+fournisseur. Voir TEST_MATRIX pour régressions et limites. Le serveur utilisateur
+est relancé ; aucun push, commit ni déploiement effectué. Reprise : réimporter
+les nouveaux exports via scripts/import_activity_workbooks.py ; compléter les
+adresses, tarifs et séances par vérifications ciblées, sans supposer leurs valeurs.
+
+## Ajout des bars, 27 septembre 2026
+
+Bar.xlsx traité : 160 lignes, 160 identifiants uniques MisterGoodBeer, 159 adresses
+à Paris et une en Seine-Saint-Denis. 160 tarifs explicitement par pinte, 111 textes
+de conditions, aucune date de vérification connue. Aucun original modifié.
+Le bundle commun passe de 482 676 à 495 119 octets (+12 443), pour 8 631 fiches.
+L’import dans la SQLite existante ajoute 160 lignes, met à jour 0 ancienne fiche
+et conserve les 8 471 précédentes. Relance idempotente unchanged=true, 160 lignes
+FTS pour 160 bars. Catalogue total : 8 131 pistes éligibles au 27 septembre.
+
+Les cartes Ask/Discover montrent source, adresse, tarif par pinte et conditions
+à confirmer. Le budget par personne reste inconnu, aucune réservation disponible
+n’est supposée. Recherche terrasse corrigée pour exclure « Pas de terrasse ».
+Serveur local 8000 relancé via run_ai.ps1. Régressions ciblées 32 passed, TypeScript
+strict et tests cartes PASS. Parcours réel du bundle dans Edge 375 px, sans appel
+externe, validé sur Discover/Ask et garder/vue d’ensemble. Détails TEST_MATRIX.
+Pas de commit ni push. Reprise : actualiser les exports ou vérifier les horaires,
+coordonnées et budget complet avant de rendre ces pistes composables.

@@ -1,6 +1,6 @@
 """Persist web-sourced public facts, apply auditable filters and rank through B.
 
-This store is a cache, never an alternative source or an offline fallback.
+One store for imported public sources and checked web snapshots. No demo fallback.
 """
 import hashlib
 import json
@@ -130,7 +130,9 @@ class CatalogService:
                 if decision is None:unknown+=1
                 if decision is not False:accepted.append(a)
             rows=accepted;trace.append({'stage':name,'before':before,'after':len(rows),'removed':before-len(rows),'unknown':unknown})
-        step('provenance',lambda a:a.get('provider')=='openai_web' and not a.get('demo') and bool(public_url(a.get('source_url',''))))
+        step('provenance',lambda a:a.get('provider') in ('openai_web','user_import') and not a.get('demo') and bool(public_url(a.get('source_url',''))))
+        from backend.streams.C_discovery.local_catalog import is_active
+        step('import_eligibility',lambda a:a.get('provider')!='user_import' or is_active(a))
         step('region_idf',lambda a:a.get('department') in IDF)
         step('expiration',lambda a: not (a.get('kind') in ('event','screening','bookable_slot') and stamp(a.get('ends_at') or a.get('starts_at')) and stamp(a.get('ends_at') or a.get('starts_at'))<datetime.now(timezone.utc)))
         step('category',lambda a:not categories or a['category'] in categories)
@@ -173,9 +175,10 @@ class CatalogService:
             shared=.05 if any(_matches(terms,v) for v in _list(profiles[2].get('interests'))) else 0
             distance=_distance(a['location'],origin) if a.get('location') and origin else None
             novelty=.2*float(profiles[2].get('novelty',.5) or 0) if a['id'] in seen else 0
-            score=max(0,min(1,.6*min(scores)+.2*sum(scores)+shared-novelty))
+            query_bonus=.08/(1+a.get('_query_rank',0)) if '_query_rank' in a else 0
+            score=max(0,min(1,.6*min(scores)+.2*sum(scores)+shared-novelty+query_bonus))
             candidate=None
-            if all(a.get(k) is not None for k in ('price_per_person','location','start','end','duration_minutes')) and window and time_ok(a):
+            if a.get('provider')!='user_import' and all(a.get(k) is not None for k in ('price_per_person','location','start','end','duration_minutes')) and window and time_ok(a):
                 candidate={'id':a['id'],'type':a['category'],'name':a['title'],'start':a['start'],'end':a['end'], 'price_per_person':a['price_per_person'],'location':a['location'],'tags':a['tags'],'booking_url':a.get('source_url'),'match_score':score,'user_a_score':scores[0],'user_b_score':scores[1]}
             ranked.append({'activity':a,'candidate':candidate,'person_a_score':scores[0],'person_b_score':scores[1],'couple_score':score,
                 'components':{'fairness':score,'shared_bonus':shared,'query_bonus':0,'novelty_penalty':novelty,'distance_penalty':0,'distance_km':distance or 0,'diversity_penalty':0},

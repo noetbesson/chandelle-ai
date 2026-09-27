@@ -252,3 +252,40 @@ Chandelle et les routes de recherche réelles, ajouter le middleware no-store de
 Noé. Cache des icônes renommé v4 pour retirer les versions v1, v2 et v3 issues des
 deux branches ; le test du worker vérifie leur suppression et préserve les caches
 d'autres applications. Aucun changement aux brouillons privés IndexedDB.
+
+## Catalogue utilisateur importé, 27 septembre 2026
+
+La nouvelle demande fournit de vraies données et autorise leur ajout au pipeline
+précédemment limité au web. Conserver une seule entrée PlanningService, les mêmes
+cartes et filtres, avec un catalogue importé et une recherche web complémentaire.
+Ne pas réintroduire les anciennes données synthétiques.
+
+Le code embarque un JSONL gzip déterministe, pas les classeurs ni leurs images
+SVG incorporées. L'import est une préparation facultative avec openpyxl ; le
+serveur n'a aucune dépendance Excel. FTS5 indexe v2_activities dans la SQLite
+existante. L'empreinte évite de réimporter au démarrage, l'identifiant du
+fournisseur empêche les doublons et une erreur invalide tout le nouvel import
+avant écriture. Un export partiel ne prouve pas la fermeture d'un lieu.
+
+Conserver la provenance fichier/onglet/ligne, les contradictions et la date
+d'import séparée de la date de collecte inconnue. Supprimer les colonnes
+de présentation, les avis et les états instantanés non datés. Une gamme de
+prix reste qualitative. Un article est une piste ; un film est une référence.
+Ni l'un ni l'autre ne prouve un événement réservable. Les sources importées
+ne deviennent jamais candidates E sans enrichissement web vérifié.
+
+Ne transmettre qu'une présélection publique de huit noms/URLs au web. Les
+notes privées restent dans B et les refus restent prioritaires. L'absence
+d'API ne bloque pas les pistes locales. Une synthèse web pour la même identité
+fournisseur remplace sa carte importée dans le résultat sans réécrire la source
+d'origine. Les doublons web restent audités par l'étape commune de déduplication.
+
+## Import Bar.xlsx, 27 septembre 2026
+
+Étendre l’import existant, sans deuxième catalogue : MisterGoodBeer fournit ici
+160 fiches de lieux permanents. Déduire la région du code postal de l’adresse,
+conserver le tarif avec son unité pinte et les conditions commerciales citées.
+Ne pas convertir le tarif d’une boisson en budget du date. Ignorer les capacités
+réservables, badges « vérifié » et images tierces non nécessaires. La date de
+collecte reste inconnue. Bar.xlsx reste optionnel pour les anciens lots de sept
+fichiers. Les recherches de terrasse excluent explicitement son absence.

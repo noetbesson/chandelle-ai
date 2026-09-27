@@ -53,8 +53,10 @@ class PlanningService:
         from datetime import timedelta,timezone
         from zoneinfo import ZoneInfo
         import hashlib
+        import re
         from backend.streams.C_discovery.web import WebDiscovery,WebQuery,WebPlan
         from backend.streams.C_discovery.service import record_web,canonical_categories
+        from backend.streams.C_discovery.local_catalog import ImportedCatalog, merge_sources
         from backend.streams.A_calendar.calendar_read import CalendarRead
         from backend.streams.A_calendar.service import paris_window
         rid=uuid4().hex
@@ -72,16 +74,26 @@ class PlanningService:
             for step in trace:logging.getLogger('uvicorn.error').info('activity_search id=%s stage=%s metrics=%s',rid,step['stage'],json.dumps(step,ensure_ascii=True))
             self._run(cid,rid,output)
             return self.public(output)
-        if request.mode=='offline':
+        imported=ImportedCatalog(self.db)
+        local=imported.search(request.text,canonical_categories(request.categories))
+        if request.mode=='offline' and not local:
             output.update(status='unavailable',empty_reason='web_disabled',message='La recherche de sorties nécessite une connexion au service de recherche. Aucun catalogue de secours n’est utilisé.')
             trace.append({'stage':'web_search','before':0,'after':0,'reason':'offline_requested'})
             return finish()
         adapter=OpenAIAdapter(db=self.db)
-        parsed=adapter.parse(request.text)
+        if request.mode=='offline':
+            from backend.integrations.openai import ParsedRequest
+            from backend.streams.H_conversation.service import parse_request
+            parsed=ParsedRequest(**parse_request(request.text))
+            adapter.last_mode='offline';adapter.last_fallback=None
+        else:
+            parsed=adapter.parse(request.text)
         categories=canonical_categories(request.categories or parsed.categories)
         categories,required_categories,category_order,requested_tags=date_intent(request.text,categories,request.activity_count)
         trace.append({'stage':'parse','mode':adapter.last_mode,'fallback':adapter.last_fallback,'categories':categories,'budget':request.budget if request.budget is not None else parsed.budget,'excluded_count':len(parsed.excluded)})
-        if adapter.last_mode!='openai':
+        local=imported.search(request.text,categories)
+        if local:trace.append({'stage':'import_search','before':len(local),'after':len(local),'limit':80})
+        if adapter.last_mode!='openai' and not local:
             output.update(status='unavailable',empty_reason=adapter.last_fallback or 'analysis_unavailable',message=self.search_error(adapter.last_fallback))
             return finish()
         # An unconfigured calendar is not a fictional Friday availability. This is a proposed search window.
@@ -106,18 +118,38 @@ class PlanningService:
             plan=WebPlan(budget=budget,date=window.start.date(),time=window.start.time().replace(tzinfo=None),
                          activity_count=request.activity_count,categories=categories,radius_km=request.radius_km or None,
                          time_window={'start':window.start.isoformat(),'end':window.end.isoformat()}))
-        web=self.web.search({'id':options['owner_id'],'couple_id':cid},body) if hasattr(self,'web') else WebDiscovery(self.db,self.memory).search({'id':options['owner_id'],'couple_id':cid},body)
+        # Same pipeline and privacy filters for both sources. Do not pay to rediscover
+        # a useful local shortlist unless dates/current information need checking.
+        local_trace=[]
+        local_ranked,_=self.catalog.filter_web(cid,local,window,budget,categories,request.radius_km,parsed.excluded,requested_tags,local_trace)
+        if local:
+            trace.extend({**t,'stage':'import_'+t['stage']} for t in local_trace)
+        local=[r['activity'] for r in local_ranked]
+        enough=len(local)>=3 and all(sum(a['category']==cat for a in local)>=3 for cat in categories)
+        dated=bool(request.time_window or getattr(parsed,'date',None) or getattr(parsed,'time',None) or re.search(r'\b(ce soir|demain|aujourd|horaire|ouvert|disponib|seance|cette semaine|week.?end)\b',request.text,re.I))
+        need_web=request.mode!='offline' and (not enough or dated)
+        body.local_references=imported.shortlist(local)
+        if not body.local_references and 'cinema' in categories:
+            body.local_references=imported.shortlist(imported.search(request.text,['cinema'],8,references=True))
+        if need_web:
+            web=self.web.search({'id':options['owner_id'],'couple_id':cid},body) if hasattr(self,'web') else WebDiscovery(self.db,self.memory).search({'id':options['owner_id'],'couple_id':cid},body)
+        else:
+            web={'status':'completed','activities':[],'sources':[],'raw_count':0,'searched_at':None,'reason':'local_sufficient','tool_calls':0,'search_calls':0}
+        output['mode']='hybrid' if local and need_web else 'imported_catalog' if local else 'openai_web'
         output['sources']=web.get('sources',[]);output['searched_at']=web.get('searched_at');output['cached']=web.get('cached',False)
         trace.append({'stage':'web_search','before':0,'after':web.get('raw_count',0),'cached':web.get('cached',False),'reason':web.get('reason'),'tool_calls':web.get('tool_calls'),'search_calls':web.get('search_calls'),'tool_limit':web.get('tool_limit'),'source_count':web.get('source_count'),'unknown_tool_actions':web.get('unknown_tool_actions')})
         trace.append({'stage':'schema_and_citations','before':web.get('raw_count',0),'after':len(web.get('activities',[])),'invalid':web.get('invalid_count',0),'uncited':web.get('uncited_count',0)})
-        if web['status']!='completed':
+        if web['status']!='completed' and not local:
             output.update(status='unavailable',empty_reason=web.get('reason'),message=self.search_error(web.get('reason')))
             return finish()
-        records=[record_web(v,web['searched_at']) for v in web['activities']]
+        if web['status']!='completed':
+            output['warnings'].append('Les fiches importées restent disponibles. La vérification web est momentanément indisponible.')
+        records=merge_sources(local,[record_web(v,web['searched_at']) for v in web.get('activities',[])])
+        trace.append({'stage':'source_merge','before':len(local)+len(web.get('activities',[])),'after':len(records)})
         ranked,cap=self.catalog.filter_web(cid,records,window,budget,categories,request.radius_km,parsed.excluded,requested_tags,trace)
         output['budget_cap']=cap
         # Store sourced public records only. Recommendations/notes remain in the private run.
-        self.catalog.persist([r['activity'] for r in ranked])
+        self.catalog.persist([r['activity'] for r in ranked if r['activity'].get('provider')!='user_import'])
         from backend.streams.E_orchestrator.activity_choices import web_activity_choices
         output['activities']=web_activity_choices(ranked)
         planning_rows=[r for r in ranked if r['candidate'] is not None]
@@ -145,16 +177,16 @@ class PlanningService:
         output['composition']=composition
         trace.append({'stage':'composition','before':len(planning_rows),'after':len(output['plans']),'combos_generated':composition.get('combos_generated',0)})
         if not ranked:
-            reason='no_web_results' if web.get('raw_count',0)==0 else 'all_filtered'
+            reason='no_web_results' if web.get('raw_count',0)==0 and not any(t['stage']=='import_search' and t['after'] for t in trace) else 'all_filtered'
             output.update(empty_reason=reason,message='Aucune piste trouvée sur le web pour cette demande. Essayez d’autres mots ou une autre date.' if reason=='no_web_results' else 'Des pistes ont été trouvées, mais aucune ne respecte vos critères actuels ou ne dispose de sources suffisantes. Essayez d’élargir votre recherche.')
             last=next((t for t in trace if t.get('before',0)>0 and t.get('after')==0 and t.get('stage') not in ('planning_fields','composition','calendar_window')),None)
             labels={'region_idf':'localisation en Île-de-France','expiration':'dates expirées','category':'catégories demandées','budget':'budget','radius':'distance','availability':'indisponibilité annoncée','time_window':'créneau demandé','explicit_exclusions':'exclusions explicites','preferred_days':'jours autorisés','accessibility':'accessibilité documentée','dietary':'contraintes alimentaires','mobility_time':'durée de déplacement','requested_tags':'goûts demandés','schema_and_citations':'informations et sources vérifiables'}
-            if last:output['message']+=f" Filtre bloquant : {labels.get(last['stage'],last['stage'])}."
+            if last:output['message']+=f" Filtre bloquant : {labels.get(last['stage'].removeprefix('import_'),last['stage'])}."
         elif plans and len(plans)<3:
-            output['warnings']=[f'Seulement {len(plans)} programme(s) distinct(s) respectent ces critères.']
+            output['warnings'].append(f'Seulement {len(plans)} programme(s) distinct(s) respectent ces critères.')
         elif not plans:
-            output['warnings']=['Les lieux ci-dessous sont des pistes sourcées. Aucun programme complet ne peut encore être composé : horaires, prix ou localisation manquants, ou contraintes incompatibles.']
-            if not windows:output['warnings']=['Les lieux restent consultables, mais aucun créneau commun ne permet de composer le programme. Vérifiez vos disponibilités.']
+            output['warnings'].append('Les lieux ci-dessous sont des pistes sourcées. Aucun programme complet ne peut encore être composé : horaires, prix ou localisation manquants, ou contraintes incompatibles.')
+            if not windows:output['warnings'].append('Les lieux restent consultables, mais aucun créneau commun ne permet de composer le programme. Vérifiez vos disponibilités.')
         missing=set(required_categories)-{r["activity"]["category"] for r in ranked}
         if ranked and missing:
             names={"food":"restaurant","outdoors":"balade","culture":"sortie culturelle","concerts":"concert","cinema":"cinéma"}

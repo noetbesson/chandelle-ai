@@ -100,6 +100,99 @@
           "default": null,
           "title": "Rating"
         },
+        "price_tier": {
+          "anyOf": [
+            {
+              "enum": [
+                "budget",
+                "moderate",
+                "upscale"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Tier"
+        },
+        "pint_price_from_eur": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pint Price From Eur"
+        },
+        "offer_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offer Note"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "City"
+        },
+        "source_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Name"
+        },
+        "source_kind": {
+          "default": "web",
+          "enum": [
+            "import",
+            "web"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "imported_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Imported At"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
         "source": {
           "title": "Source",
           "type": "string"

@@ -51,9 +51,13 @@ def web_activity_choices(rows):
         result.append({'id':a['id'],'name':a['title'],'category':a['category'],
             'start':a.get('starts_at'),'end':a.get('ends_at'),'price_per_person':a.get('price_per_person'),
             'location':a.get('location'),'address':a['address'],'tags':a['tags'],
-            'why':'Correspond à votre recherche, avec classement selon les préférences autorisées.',
+            'why':('Fiche importée, classée selon votre demande et les préférences autorisées. Détails à confirmer.' if a.get('provider')=='user_import' else 'Correspond à votre recherche, avec classement selon les préférences autorisées.'),
             'demo':False,'source':a['source_url'],'source_url':a['source_url'],'kind':a['kind'],
             'checked_at':a['checked_at'],'schedule_status':a['schedule_status'],
             'availability':a.get('availability','unknown'),'price_unit':a.get('price_unit','unknown'),
-            'composable':r['candidate'] is not None,'image_url':None,'rating':None})
+            'composable':r['candidate'] is not None,'image_url':None,'rating':a.get('rating'),
+            'price_tier':a.get('price_tier'),'city':a.get('city'),'source_name':a.get('source_name'),
+            'pint_price_from_eur':a.get('pint_price_from_eur'),'offer_note':a.get('offer_note'),
+            'imported_at':a.get('imported_at'),'description':a.get('description',''),
+            'source_kind':'import' if a.get('provider')=='user_import' else 'web'})
     return result

@@ -89,6 +89,14 @@ class ActivityChoice(BaseModel):
     demo: bool
     image_url: str | None = None
     rating: float | None = None
+    price_tier: Literal['budget','moderate','upscale'] | None = None
+    pint_price_from_eur: float | None = Field(default=None,ge=0,le=100)
+    offer_note: str | None = None
+    city: str | None = None
+    source_name: str | None = None
+    source_kind: Literal['import','web'] = 'web'
+    imported_at: str | None = None
+    description: str = ''
     source: str
 
 

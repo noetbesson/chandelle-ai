@@ -537,3 +537,62 @@ reste utilisable au clavier. Les tests Gradium utilisent un fournisseur simulé.
 L'import iCal Google et les connexions OAuth Google/Outlook coexistent dans
 Disponibilités. L'import iCal est ponctuel et doit être relancé après modification
 de l'agenda ; il ne remplace pas une connexion OAuth.
+
+### Catalogue importé depuis les fichiers Excel
+
+Les fiches fournies sont livrées dans
+`backend/streams/C_discovery/data/imported_catalog.jsonl.gz` (495 Ko), avec un bilan
+dans `import_report.json`. Les Excel originaux ne sont ni modifiés ni servis au
+navigateur. L'archive contient 8 631 fiches uniques : 7 760 lieux Tripadvisor,
+160 bars MisterGoodBeer, 105 films AlloCiné et 606 articles Sortiraparis. Le démarrage habituel importe
+cette archive dans **la même** `.runtime/chandelle_v2.sqlite3`, table
+`v2_activities`. Un index FTS5 permet les recherches sans charger toutes les
+fiches dans le navigateur ou les envoyer au modèle. L'archive est une version
+portable des données, pas une seconde base.
+
+Ask, Discover et le dialogue vocal passent par la même recherche. Une sélection
+locale suffisante évite l'appel web pour une demande générale. Une date précise
+ou un manque de candidats déclenche la recherche web existante, avec au maximum
+huit références publiques pour l'orienter. Ses plafonds restent inchangés. Si ce
+service est indisponible, les fiches importées pertinentes restent consultables.
+L'analyse de la demande peut toujours utiliser un appel texte lorsque le serveur
+est configuré ; la base complète n'est jamais transmise. Les refus et règles de
+confidentialité existants restent appliqués.
+
+Les étoiles et gammes `$` / `$$ - $$$` / `$$$$` sont des indications de l'export,
+jamais un prix en euros ni une validation récente. Les mentions « Open now », les
+avis, doublons de liens et SVG incorporés sont retirés. Les films restent des
+références pour rechercher des séances. Les articles périmés, annulés, éditoriaux
+ou sans localisation francilienne suffisante ne deviennent pas des sorties.
+Les dates relatives sans année restent inconnues. Les pistes incomplètes sont
+gardables mais non composables tant que prix, horaires et localisation manquent.
+Chaque fiche conserve la source, son identifiant et les lignes Excel d'origine.
+La date d'import n'est pas la date de vérification.
+
+Pour préparer une nouvelle version depuis les sept exports et Bar.xlsx (optionnel), puis la charger :
+
+```powershell
+python -m pip install -r scripts/requirements-import.txt
+python scripts/import_activity_workbooks.py --source "CHEMIN\Data raw" --db .runtime/chandelle_v2.sqlite3
+```
+
+Pour recharger uniquement l'archive déjà préparée, sans dépendance Excel :
+
+```powershell
+python scripts/import_activity_workbooks.py --db .runtime/chandelle_v2.sqlite3
+```
+
+La reprise est idempotente : même identifiant source, même fiche. Les changements
+mettent à jour cette fiche, un export partiel ne supprime pas les autres et une
+archive invalide laisse la base intacte. `v2_catalog_imports` conserve l'empreinte
+et le bilan du dernier import. Il n'y a ni collecte automatique des sites ni
+planification d'actualisation activée pour ces fichiers.
+
+Les 160 bars de `Bar.xlsx` sont classés dans `nightlife` et conservent leur adresse,
+leurs tags et les tarifs explicitement annoncés par pinte. `pint_price_from_eur`
+ne remplit jamais `price_per_person` : le budget de la sortie reste inconnu.
+Les 111 textes de conditions sont conservés dans `offer_note` et affichés comme
+indications de l’export non vérifiées aujourd’hui. La capacité réservable et le
+badge du fournisseur ne prouvent aucune disponibilité. Une recherche « bar
+terrasse » écarte les fiches marquées « Pas de terrasse ». Aucun téléchargement
+de photos ou appel fournisseur n’est nécessaire pour cet import.

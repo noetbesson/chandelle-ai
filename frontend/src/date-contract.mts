@@ -13,6 +13,14 @@ export interface ActivityChoice {
   demo: boolean;
   image_url?: string | null;
   rating?: number | null;
+  price_tier?: "budget" | "moderate" | "upscale" | null;
+  pint_price_from_eur?: number | null;
+  offer_note?: string | null;
+  city?: string | null;
+  source_name?: string | null;
+  source_kind?: "import" | "web";
+  imported_at?: string | null;
+  description?: string;
   source: string;
   source_url?: string | null;
   kind?: string;

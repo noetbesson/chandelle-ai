@@ -100,7 +100,7 @@ def install_routes(app,db_path):
     def health():return {'status':'ok','version':'2.0','schema_version':1,'extensions':{'peer_merge':1,'google_ical':1},'offline':True}
 
     @router.get('/integrations')
-    def integrations():return {'gradium':GradiumAdapter().status(),'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_connected','timezone':'Europe/Paris','ics_export':True,'google_ical_import':True,'automatic_sync':False,'providers':{p:calendars['auth'].configured(p) for p in ('google','outlook')},'apple_caldav':False,'scheduler_running':bool(calendars['scheduler'].scheduler and calendars['scheduler'].scheduler.running)},'catalog':{'mode':'web_search_only'},'schema_version':1,'extensions':{'peer_merge':1,'calendar_proactive':1,'google_ical':1,'voice':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
+    def integrations():return {'gradium':GradiumAdapter().status(),'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_connected','timezone':'Europe/Paris','ics_export':True,'google_ical_import':True,'automatic_sync':False,'providers':{p:calendars['auth'].configured(p) for p in ('google','outlook')},'apple_caldav':False,'scheduler_running':bool(calendars['scheduler'].scheduler and calendars['scheduler'].scheduler.running)},'catalog':{'mode':'imported_and_web',**__import__('backend.streams.C_discovery.local_catalog',fromlist=['ImportedCatalog']).ImportedCatalog(db).status()},'schema_version':1,'extensions':{'peer_merge':1,'calendar_proactive':1,'google_ical':1,'voice':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
 
     @router.post('/onboarding/couples')
     def create(body:CoupleCreate):return onboarding.create(body)
@@ -442,7 +442,8 @@ def install_routes(app,db_path):
             tables=[r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'v2_%'") if r[0] not in ('v2_schema','v2_extensions','v2_ai_calls')]
             c.execute('PRAGMA foreign_keys=OFF')
             for table in tables:
-                if table.replace('_','').isalnum():c.execute('DELETE FROM "'+table+'"')
+                # FTS5 owns its shadow tables; deleting those directly corrupts the index.
+                if table.replace('_','').isalnum() and not table.startswith('v2_activity_search_'):c.execute('DELETE FROM "'+table+'"')
         if upload_dir.exists():
             for file in upload_dir.iterdir():
                 if file.is_file() and len(file.stem)==32 and all(x in '0123456789abcdef' for x in file.stem):file.unlink()
