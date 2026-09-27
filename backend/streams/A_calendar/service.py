@@ -1,8 +1,9 @@
 """V2 calendar adapter inspired by the peer time.ts; A's contract stays intact."""
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SecretStr, model_validator
+from backend.integrations.google_calendar import busy_intervals, google_ical_url
 
 from backend.streams.E_orchestrator.models import TimeWindow
 
@@ -34,7 +35,7 @@ def paris_window(window):
 
 
 class AvailabilityInput(BaseModel):
-    slots: list[TimeWindow] = Field(default_factory=list, max_length=50)
+    slots: list[TimeWindow] = Field(default_factory=list, max_length=500)
 
     @model_validator(mode='after')
     def validate_slots(self):
@@ -43,18 +44,56 @@ class AvailabilityInput(BaseModel):
         return self
 
 
+class GoogleCalendarInput(BaseModel):
+    url: SecretStr = Field(repr=False)
+    start_date: date
+    days: int = Field(default=14, ge=1, le=31)
+    daily_start: time = time(8)
+    daily_end: time = time(23)
+
+    @model_validator(mode='after')
+    def validate_import(self):
+        google_ical_url(self.url.get_secret_value())
+        if self.daily_start.tzinfo or self.daily_end.tzinfo or self.daily_start >= self.daily_end:
+            raise ValueError('Choisissez une plage quotidienne croissante, en heures de Paris.')
+        return self
+
+
 class AvailabilityService:
     def __init__(self, db):
         self.db = db
 
-    def save(self, cid, uid, body):
+    def save(self, cid, uid, body, imported=None):
         from backend.db import encoded, now
         slots = merge_slots([(instant(s.start), instant(s.end)) for s in body.slots])
         with self.db.connect() as con:
             con.execute('INSERT INTO v2_availability VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at',
                         (uid, cid, encoded([{'start':a.isoformat(), 'end':b.isoformat()} for a,b in slots]), now()))
+            con.execute('DELETE FROM v2_calendar_imports WHERE user_id=?', (uid,))
+            if imported:
+                con.execute('INSERT INTO v2_calendar_imports(user_id,couple_id,imported_at,start_date,days,daily_start,daily_end) VALUES(?,?,?,?,?,?,?)',
+                    (uid,cid,now(),str(imported.start_date),imported.days,str(imported.daily_start),str(imported.daily_end)))
             con.execute("UPDATE v2_suggestions SET state='expired' WHERE couple_id=? AND state IN ('new','viewed','snoozed')",(cid,))
         return self.state(cid, uid)
+
+    def import_calendar(self, cid, uid, body, data):
+        windows = [(instant(datetime.combine(body.start_date + timedelta(days=i), body.daily_start)),
+                    instant(datetime.combine(body.start_date + timedelta(days=i), body.daily_end))) for i in range(body.days)]
+        busy = merge_slots(busy_intervals(data, windows[0][0], windows[-1][1]))
+        free = []
+        for start, end in windows:
+            cursor = start
+            for a, b in busy:
+                if b <= cursor or a >= end:
+                    continue
+                if a > cursor:
+                    free.append((cursor, min(a, end)))
+                cursor = max(cursor, min(b, end))
+            if cursor < end:
+                free.append((cursor, end))
+        slots = [TimeWindow(start=a, end=b) for a,b in free if b-a >= timedelta(minutes=30)]
+        result = self.save(cid, uid, AvailabilityInput(slots=slots), imported=body)
+        return {**result, 'imported_slots':len(slots)}
 
     def _rows(self, cid):
         import json
@@ -65,7 +104,9 @@ class AvailabilityService:
         from .calendar_read import CalendarRead
         rows = self._rows(cid)
         common = self.common(cid)
-        return {'own_slots':rows.get(uid, []), 'configured':uid in rows,
+        with self.db.connect() as con:
+            source = con.execute('SELECT imported_at,start_date,days,daily_start,daily_end FROM v2_calendar_imports WHERE user_id=? AND couple_id=?', (uid,cid)).fetchone()
+        return {'calendar_import':dict(source) if source else None, 'own_slots':rows.get(uid, []), 'configured':uid in rows,
                 'mode':'connected' if CalendarRead(self.db).connected(cid) else 'manual' if rows else 'demo', 'timezone':'Europe/Paris',
                 'common_slots':[{'start':a.isoformat(), 'end':b.isoformat()} for a,b in common],
                 'both_configured':len(rows)==2}

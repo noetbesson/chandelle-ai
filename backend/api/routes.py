@@ -14,10 +14,14 @@ from backend.streams.B_memory.onboarding import OnboardingService, CoupleCreate,
 from backend.streams.B_memory.service import Privacy
 from backend.db import now, encoded
 from backend.streams.E_orchestrator.service import PlanningService, Query, Review
-from backend.streams.A_calendar.service import AvailabilityService, AvailabilityInput
+from backend.streams.A_calendar.service import AvailabilityService, AvailabilityInput, GoogleCalendarInput
 from backend.streams.F_booking.service import prepare, calendar
 from backend.streams.D_connectors.service import InspirationService, SignalImport, SignalConfirm
 from backend.integrations.openai import OpenAIAdapter
+from backend.integrations.gradium import GradiumAdapter, SpeechUnavailable
+from backend.integrations.google_calendar import download_calendar, CalendarUnavailable
+from starlette.concurrency import run_in_threadpool
+from backend.streams.H_conversation.voice import DiscoveryTurn, SpeechText, discovery_turn
 from backend.integrations.ai_budget import AIBudget
 from backend.streams.C_discovery.web import WebDiscovery, WebQuery
 from backend.streams.B_memory.service import MemoryServiceV2
@@ -93,10 +97,10 @@ def install_routes(app,db_path):
             if not r:raise PermissionError('Unknown personal session')
 
     @router.get('/health')
-    def health():return {'status':'ok','version':'2.0','schema_version':1,'extensions':{'peer_merge':1},'offline':True}
+    def health():return {'status':'ok','version':'2.0','schema_version':1,'extensions':{'peer_merge':1,'google_ical':1},'offline':True}
 
     @router.get('/integrations')
-    def integrations():return {'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_connected','timezone':'Europe/Paris','ics_export':True,'providers':{p:calendars['auth'].configured(p) for p in ('google','outlook')},'apple_caldav':False,'scheduler_running':bool(calendars['scheduler'].scheduler and calendars['scheduler'].scheduler.running)},'catalog':{'mode':'web_search_only'},'schema_version':1,'extensions':{'peer_merge':1,'calendar_proactive':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
+    def integrations():return {'gradium':GradiumAdapter().status(),'openai':{**OpenAIAdapter().status(),'web_enabled':os.getenv('OPENAI_WEB_ENABLED')=='1'},'calendar':{'mode':'manual_or_connected','timezone':'Europe/Paris','ics_export':True,'google_ical_import':True,'automatic_sync':False,'providers':{p:calendars['auth'].configured(p) for p in ('google','outlook')},'apple_caldav':False,'scheduler_running':bool(calendars['scheduler'].scheduler and calendars['scheduler'].scheduler.running)},'catalog':{'mode':'web_search_only'},'schema_version':1,'extensions':{'peer_merge':1,'calendar_proactive':1,'google_ical':1,'voice':1},'developer_mode':os.getenv('CHANDELLE_DEV')=='1'}
 
     @router.post('/onboarding/couples')
     def create(body:CoupleCreate):return onboarding.create(body)
@@ -208,7 +212,40 @@ def install_routes(app,db_path):
         return catalog.record_state(member['couple_id'],member['id'],aid,body.state)
 
     @router.post('/recommendations/query')
-    def recommend(body:Query,member=Depends(ready)):return planning.query(member['couple_id'],body,deck_options={'owner_id':member['id'],'duration':360,'travel':30})
+    def recommend(body:Query,member=Depends(ready)):
+        # Recommendation text belongs to its author, regardless of plan visibility.
+        interaction=conversations.ingest(member,Conversation(text=body.text),OpenAIAdapter(enabled=False))
+        result=planning.query(member['couple_id'],body,deck_options={'owner_id':member['id'],'duration':360,'travel':30})
+        return {**result,'conversation_id':interaction['conversation_id']}
+
+
+    @router.post('/discover/chat')
+    def discover_chat(body: DiscoveryTurn, member=Depends(ready)):
+        return discovery_turn(body, lambda text, budget: planning.query(member['couple_id'],
+            Query(text=text, budget=budget, activity_count=2, max_plans=3, mode='auto'),
+            deck_options={'owner_id':member['id'],'duration':360,'travel':30}))
+
+    @router.post('/voice/transcribe')
+    async def transcribe(request: Request, member=Depends(ready)):
+        if request.headers.get('content-type', '').split(';')[0] != 'audio/wav':
+            raise HTTPException(415, 'Audio WAV requis')
+        audio = bytearray()
+        async for chunk in request.stream():
+            audio.extend(chunk)
+            if len(audio) > 4_500_000:
+                raise HTTPException(413, 'Prise de parole trop longue')
+        try:
+            return {'text': await GradiumAdapter().transcribe(bytes(audio))}
+        except SpeechUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+
+    @router.post('/voice/speak')
+    async def speak(body: SpeechText, member=Depends(ready)):
+        try:
+            audio = await GradiumAdapter().speak(body.text)
+        except SpeechUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+        return Response(audio, media_type='audio/wav', headers={'Cache-Control': 'private, no-store'})
 
     @router.get('/availability')
     def availability_state(member=Depends(ready)):
@@ -217,6 +254,14 @@ def install_routes(app,db_path):
     @router.put('/availability')
     def availability_save(body:AvailabilityInput,member=Depends(ready)):
         return availability.save(member['couple_id'],member['id'],body)
+
+    @router.post('/availability/google-calendar')
+    async def import_google_calendar(body: GoogleCalendarInput, member=Depends(ready)):
+        try:
+            data = await download_calendar(body.url.get_secret_value())
+        except CalendarUnavailable as exc:
+            raise HTTPException(502, str(exc)) from None
+        return await run_in_threadpool(availability.import_calendar, member['couple_id'], member['id'], body, data)
 
     @router.get('/inspirations')
     def inspiration_list(member=Depends(ready)):
@@ -327,6 +372,14 @@ def install_routes(app,db_path):
         with db.connect() as c:c.execute('DELETE FROM v2_uploads WHERE id=?',(uid,))
         return {'deleted':True}
 
+    @router.get('/conversations')
+    def conversation_list(limit:int=100,offset:int=0,member=Depends(ready)):
+        return conversations.list(member,limit,offset)
+
+    @router.get('/conversations/{sid}')
+    def conversation_history(sid:str,member=Depends(ready)):
+        return conversations.history(member,sid)
+
     @router.post('/conversations')
     def conversation(body:Conversation,member=Depends(ready)):
         adapter=OpenAIAdapter(enabled=body.mode in {'openai','auto'} and OpenAIAdapter().enabled,db=db)
@@ -359,6 +412,7 @@ def install_routes(app,db_path):
             c.execute('DELETE FROM v2_uploads WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_activity_states WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_availability WHERE user_id=?',(uid,))
+            c.execute('DELETE FROM v2_calendar_imports WHERE user_id=?',(uid,))
             c.execute('DELETE FROM v2_snapshots WHERE entity_id IN (?,?)',(uid,cid))
             c.execute("UPDATE v2_memberships SET status='not_started',current_step=1,completed_at=NULL WHERE user_id=?",(uid,))
             c.execute("UPDATE v2_couples SET onboarding_status='in_progress',profile_version=0 WHERE id=?",(cid,))

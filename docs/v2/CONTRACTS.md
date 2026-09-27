@@ -134,6 +134,67 @@ GET/PUT `/api/v2/proactive/settings`, PUT `/api/v2/proactive/mood-consent` (`{en
 
 Tables ajoutées : v2_calendar_connections, v2_calendar_oauth, v2_calendar_approvals, v2_calendar_events, v2_notifications, v2_notification_reads, v2_proactive_settings, v2_proactive_runs, v2_mood_cloud, v2_mood_cache. Aucune seconde base. Suppression des accès et consentements lors de l'effacement personnel. Le scheduler n'est actif qu'avec PROACTIVE_SCHEDULER_ENABLED=1 et un serveur vivant ; son état réel est exposé dans proactive/settings. Cette extension ne garantit pas la vérification des activités issues du catalogue de démo ni une réplication des éditions distantes dans les DatePlans.
 
+## Mémoire continue
+
+- `POST /conversations` conserve les champs existants `text`, `privacy_scope`,
+  `mode`, et accepte `conversation_id?`, `idempotency_key?`, `learn=true`,
+  `auto_share=true`, `horizon=durable|temporary`. Sans confidentialité explicite,
+  seuls les goûts de l'allowlist sont SHARED ; le reste reste PRIVATE. Confidentialité
+  explicite et restrictions antérieures priment sur l'automatisme.
+- Réponse : `{conversation_id,interaction_id,facts,mode,replayed}`. Les répétitions
+  consolident les faits ; les messages restent distincts sauf renvoi idempotent.
+  Réutiliser une clé avec un autre payload est une erreur 422.
+- `GET /conversations?limit=100&offset=0` liste les échanges du membre (1–100 par page), avec total ;
+  `GET /conversations/{sid}` rend les messages de cet échange au seul propriétaire.
+- `/recommendations/query` conserve le texte dans le journal de l'auteur et ajoute
+  `conversation_id` à sa réponse. Les faits privés n'influencent pas le couple.
+- `v2_memory_interactions` : reçu par interaction, user/conversation/message avec
+  FK cascade, request_key unique par user, fingerprint, fact_ids JSON et mode.
+  Registre additif `continuous_memory=1` ; base `v2_schema=1` inchangée.
+- Faits durables : `valid_to=NULL`. Envies : `valid_to=maintenant+30 jours` ;
+  exclusion automatique du profil/recherche après expiration. Clés `learned:`
+  séparées par horizon. Événement `observed` relie le fait à son interaction.
+- Le journal n'est pas un chatbot génératif : il montre les messages réellement
+  conservés et les faits extraits. OpenAI reste opt-in via l'adaptateur existant.
+  Repli local limité aux assertions/préférences explicites françaises/anglaises.
+
+## Discover vocal Gradium
+
+- `POST /discover/chat` : `{messages: string[0..8], recommend: boolean=false}`,
+  chaque message 1–1500 caractères ; réponse `{reply, plans, ...run éventuel}`.
+  Historique temporaire fourni par le navigateur, pas de lecture du journal.
+  H injecte un appel E avec budget extrait, 2 activités maximum et 1 plan.
+- `POST /voice/transcribe` : corps WAV PCM mono 16 bits, Content-Type audio/wav,
+  plafond 4 500 000 octets et durée maximale 46 s (tolérance autour des 45 s UI).
+  Réponse `{text}`. Audio non conservé.
+- `POST /voice/speak` : `{text: string(1..1500)}` → audio/wav, cache privé no-store.
+- Les trois endpoints exigent X-Member-Token et les entretiens terminés. Erreurs
+  fournisseur nettoyées en 503 ; validation 422, type audio 415, taille 413.
+- `/integrations` ajoute `gradium:{enabled,configured,available}` sans clé.
+- Variables : GRADIUM_ENABLED/API_KEY/VOICE_ID, GRADIUM_STT_MODEL/TTS_MODEL.
+  Aucun schéma SQL modifié. Protocole et lancement dans GRADIUM.md.
+
+Interface vocale compacte : aucun changement HTTP. La transcription reste interne
+au navigateur et est envoyée automatiquement à /discover/chat à la fin d’une
+prise. Aucun champ transcript ni stockage supplémentaire introduit.
+
+## Import Google Calendar
+
+- `POST /availability/google-calendar` : `{url: adresse iCal Google HTTPS,
+  start_date: YYYY-MM-DD, days:1..31=14, daily_start:HH:MM=08:00, daily_end:HH:MM=23:00}`.
+  Entretien terminé et token requis. Réponse état habituel + imported_slots.
+  Validation 422 ; téléchargement inaccessible 502. Aucun remplacement en échec.
+- `GET /availability` ajoute `calendar_import:null|{imported_at,start_date,days,
+  daily_start,daily_end}` pour le propriétaire uniquement. `mode` historique
+  manual/demo conservé ; les métadonnées distinguent une importation de la saisie.
+- Saisie manuelle et imports acceptent au maximum 500 créneaux (ancienne borne 50
+  élargie). Horaires de sortie Paris, trous libres >=30 min, ni titre ni URL stockés.
+- Nouvelle table additive `v2_calendar_imports(user_id PK REFERENCES v2_users ON
+  DELETE CASCADE,couple_id,imported_at,start_date,days,daily_start,daily_end)`.
+  Registre google_ical=1 ; v2_schema reste 1. Écriture avec v2_availability dans
+  la même transaction, effacement personnel/reset inclus.
+- /integrations.calendar expose google_ical_import=true, automatic_sync=false.
+  /health et /integrations annoncent l’extension google_ical.
 ## Entrée vidéo mémoire
 
 `backend/api/reels.py` est installé par `install_routes`, sans nouveau serveur.
@@ -248,3 +309,23 @@ legacy). Les anciens contrats cloud_consent restent inchangés ; aucun client le
 n'est activé rétroactivement. Les quotas et l'autorisation d'utiliser un fichier
 restent vérifiés. Le traitement d'humeur historique n'est pas activé par la suppression
 de son ancien bouton : les autorisations enregistrées et la configuration demeurent.
+
+## Chandelier vocal
+
+Changement de présentation uniquement : contrats HTTP, WAV et stockage inchangés.
+Le niveau audio utilisé pour les flammes reste dans le navigateur. Les identifiants
+DOM/actions voice-orb sont conservés pour la compatibilité du contrôleur.
+## Contrats après fusion Gradium et cartes, 27 septembre 2026
+
+`POST /api/v2/discover/chat` conserve messages/recommend/reply/plans et, lors
+d'une recherche, retourne aussi le run_id, les activités sourcées, avertissements
+et traces de PlanningService. Le front projette run_id en search_id et plans en
+proposals pour le même ActivitySwipeDeck. Composer réutilise le pool privé ; une
+activité sans prix ou horaire reste consultable sans devenir un faux programme.
+L'identité reste issue de X-Member-Token et des entretiens terminés.
+
+`GET /api/v2/integrations` combine l'état Gradium, le catalogue web_search_only,
+les fournisseurs OAuth et google_ical_import. automatic_sync=false concerne
+l'absence de synchronisation automatique des événements ; l'import iCal reste
+ponctuel. Aucun secret n'est retourné. `/conversations` accepte toujours auto,
+ainsi que les champs conversation_id/idempotency_key/horizon/learn de Noé.

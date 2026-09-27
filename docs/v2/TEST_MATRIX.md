@@ -203,6 +203,79 @@ courante unique : `bash scripts/check.sh`. Aucun appel live ni nouvelle dépenda
 - `bash scripts/check.sh` → code 0 : **141 passed in 10.38s**, deux suites Node et parcours API TestClient PASS ; syntaxe JS/shell et `git diff --check` réussis.
 - Commandes courantes : `bash scripts/run.sh` pour lancer, `bash scripts/check.sh` pour vérifier. Les anciens chemins run_v2_demo/test_v2_offline dans les preuves précédentes décrivent les commandes exécutées à ces dates.
 
+## Mémoire continue — 2026-09-26
+
+- Baseline `bash scripts/check.sh` : **141 passed in 9.80s**, code 0 ; suites Node,
+  parcours API frontend et syntaxe/diff PASS.
+- Après première intégration, même commande : **141 passed in 9.61s**, code 0,
+  suites Node et parcours API PASS.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_api.py` :
+  **40 passed in 7.53s**, code 0. Isolation, partage, corrections, répétitions,
+  expiration, rollback injecté, effacement et réouverture.
+- `bash scripts/check.sh` : **156 passed in 13.26s**, code 0, Node/API PASS.
+- `bash scripts/check.sh` : **158 passed in 13.24s**, code 0, Node/API PASS,
+  nouveau test frontend du journal PASS. Renvois simultanés et confidentialité
+  après expiration couverts. Aucun fournisseur live appelé.
+- `bash scripts/check.sh` : **160 passed in 13.52s**, code 0, Node/API PASS.
+  Pagination et préférences opposées entre partenaires couvertes.
+- Validation finale `bash scripts/check.sh` : **161 passed in 13.72s**, code 0 ;
+  deux suites Node, journal frontend, parcours API, syntaxe et diff PASS. Correction
+  du questionnaire partagé sans écrasement des préférences du partenaire couverte.
+- `git diff --check` : code 0 ; contrôle `git diff --name-only -- backend/shared backend/streams/A_calendar backend/streams/D_connectors backend/streams/F_booking docs/codex-E docs/night-shift` :
+  sortie vide, code 0. Aucun test navigateur réel, fournisseur live, installation,
+  commit ou publication. Archive préexistante chandelle-code.zip non modifiée.
+
+## Gradium / Discover vocal — 2026-09-26
+
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_voice.py` : **10 passed in 2.43s**, code 0.
+- `node frontend/tests/test_voice.mjs` : PASS, code 0 (dialogue, plans, échappement,
+  invalidation au changement de profil, libération du micro après permission
+  tardive, format WAV PCM mono).
+- `bash scripts/check.sh` : **171 passed in 17.59s**, code 0 ; suites JS, parcours
+  API, syntaxe shell et diff PASS. Gradium utilise un MockTransport httpx ; aucun
+  fournisseur réel appelé.
+- Les tests actuels sont neuf fichiers Python, avec dix nouveaux cas vocaux, et
+  trois suites Node. Le runner désactive Gradium en plus d'OpenAI.
+- Après ajout du modèle STT configurable et arrêt du micro lors d'une recherche
+  catalogue : même pytest ciblé → **10 passed in 2.59s** ; syntaxe app.mjs et suite
+  voice Node PASS ; `git diff --check` et `bash -n scripts/run_voice.sh scripts/check.sh` → code 0.
+
+## Cercle vocal Discover
+
+- `node frontend/tests/test_voice.mjs` : PASS ; pas de transcript/lecteur dans
+  l’interface principale, passage speaking → ready sur événements audio, réponse
+  vocale transcrite et envoyée automatiquement, isolation et libération du micro.
+- `bash scripts/check.sh` : code 0, **171 passed in 16.40s**, trois suites Node,
+  parcours API frontend et syntaxe/diff PASS.
+- Aucun appel Gradium réel ni essai visuel/micro dans un navigateur réel.
+
+## Import Google Calendar
+
+- Installation nécessaire : uv pip install dans .venv de icalendar==7.3.0 et
+  recurring-ical-events==3.8.2 ; réseau approuvé pour les dépendances seulement.
+- Première suite calendrier : 13 passed, 4 failed (réapplication du MockTransport
+  et méthode TestClient.delete sans json). Helpers de test corrigés.
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_calendar.py` :
+  **17 passed in 2.15s**, puis **22 passed in 2.35s** après ajout des tests de
+  fuseau d’agenda, exception annulée, refus des ICS malformés, réouverture et plan.
+- `node frontend/tests/test_experiences.mjs` : PASS ; formulaire iCal masqué,
+  endpoint réel et effacement du champ après import. Aucun appel Google réel.
+- `bash scripts/check.sh` : code 0, **193 passed in 18.74s**, trois suites Node
+  et parcours API PASS, syntaxe/diff PASS.
+- Après annonce de google_ical dans health/integrations : tests calendrier
+  relancés, avec assertions sur les métadonnées publiques : **22 passed in 2.34s**,
+  code 0 ; `git diff --check` code 0.
+
+## Préparation publication noe/memory — 2026-09-27
+
+- `bash scripts/check.sh` : code 0, **193 passed in 18.47s**, trois suites Node,
+  parcours API, syntaxe et diff PASS. Aucun fournisseur live appelé.
+- Vérification de la destination : origin = noetbesson/chandelle ; branche distante
+  noe/memory au commit local de départ 377d56e, aucun écart observé avant publication.
+- Archive locale exclue du suivi futur et conservée sur disque ; son historique
+  existant n’est pas réécrit. Contrôle de noms sensibles dans l’archive et de
+  signatures fortes de secrets dans les fichiers : aucun résultat détecté
+  (contrôle ciblé, pas garantie d’absence de tout secret historique).
 ## Audit de raccordement de la mémoire vidéo (26 septembre 2026)
 
 | Vérification | Résultat observé | Code concerné |
@@ -388,3 +461,57 @@ Captures locales : .runtime/activity-mobile.png, .runtime/activity-desktop.png.
 Aucun test fournisseur payant ; aucune preuve de réservation, disponibilité réelle,
 menu de partage Android natif ou mise en production. Les tests navigateur utilisent
 .runtime/activity-ui-test.sqlite3, jamais la base de travail de l'équipe.
+
+## Chandelier vocal — 2026-09-27
+
+- `node --check frontend/app/voice.mjs` : code 0.
+- `node frontend/tests/test_voice.mjs` : PASS ; seuil/bruit, saturation, amplitude,
+  analyse lecture/micro, réutilisation de source, absence de retour micro vers
+  haut-parleurs et nettoyage du contexte/animation (Web Audio simulé).
+- `bash scripts/check.sh` : code 0, **193 passed in 18.87s**, suites Node et
+  parcours API frontend PASS.
+- Aucun test visuel ou micro dans un navigateur réel, aucun appel Gradium live.
+
+## Rechargement du chandelier
+
+- `bash scripts/check.sh` : code 0, **193 passed in 18.59s**, suites Node et
+  parcours API PASS.
+- Lecture HTTP du serveur localhost:8000 : document, app, module vocal et CSS
+  versionnés contiennent les références et marqueurs du chandelier attendus.
+- Pas de validation visuelle dans un navigateur réel.
+
+## Intégration avant publication chandelier
+
+- Première suite après rebase : échec de collecte (dotenv/ffmpeg manquants et
+  bloc Python mal indenté préexistant sur la branche distante).
+- Installation des dépendances déjà déclarées avec
+  `uv pip install --python .venv/bin/python -r backend/requirements.txt`.
+- Après retrait du bloc Python dupliqué : 255 passed, 12 skipped, 5 subtests
+  passed in 21.51s ; suite interrompue ensuite par fonctions JS dupliquées.
+- Après raccordement frontend : suites Node UI, experiences, voice, AI et share
+  PASS ; syntaxe app/experiences PASS.
+
+Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
+12 skipped, 5 subtests passed in 21.18s**, suites Node et parcours API PASS.
+## Fusion Noé / cartes / Gradium, 27 septembre 2026
+
+- `.venv\Scripts\python.exe scripts/test_offline.py --tb=short --basetemp .runtime/merge-noe-full` : **313 passed in 278.13s**, sortie `.runtime/merge-noe-full.txt`.
+- Huit suites `frontend/tests/test_*.mjs` exécutées avec le Node fourni par Codex :
+  activity_cards, ai, calendar, date_deck, experiences, share, ui, voice : PASS.
+- `node --check frontend/app/app.mjs`, `node --check frontend/app/voice.mjs` : PASS.
+- `node frontend/node_modules/typescript/bin/tsc -p frontend/tsconfig.json --noEmit` : PASS.
+- `.venv\Scripts\python.exe scripts/generate_date_contract.py --check` : PASS.
+- `.venv\Scripts\python.exe scripts/verify_frontend_api.py` : PASS.
+- `.venv\Scripts\python.exe -m pip check` : aucune incohérence.
+- Test navigateur de fusion dans le workspace Codex :
+  `.runtime/run_merge_browser.py` et `.runtime/test_merge_browser.cjs` : PASS.
+  Edge à 375 px, API/SQLite de test sur 8332, fournisseur web simulé, Gradium
+  désactivé ; chandelier, dialogue texte, cartes sourcées, sélection, fermeture,
+  formulaire Discover, journal et présence OAuth/iCal. Sortie projet
+  `.runtime/merge-noe-browser.txt`, capture `.runtime/merge-noe-mobile.png` inspectée.
+
+Les essais initiaux ont révélé un champ d'état calendrier manquant et deux
+incompatibilités avec l'ancien parcours catalogue : corrigés avant la suite
+complète. Le test navigateur a été ajusté aux sélecteurs réels du journal et de
+la navigation avant son passage final. Aucun test live Gradium ni OAuth, aucun
+appel payant OpenAI ; ces validations ne prouvent pas la connexion d'un compte.

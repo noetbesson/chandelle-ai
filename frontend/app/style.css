@@ -5,6 +5,22 @@
 .selection-bar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.7rem;background:#fffaf3f5;border:1px solid var(--line);border-radius:14px;padding:.8rem;margin-top:1rem;backdrop-filter:blur(12px)}
 .selection-bar span{font-size:.82rem;color:var(--muted)}.signal-text{white-space:pre-wrap;overflow-wrap:anywhere}.comparison-table{overflow-x:auto}table{border-collapse:collapse;width:100%;text-align:left}th,td{padding:.8rem .5rem;border-bottom:1px solid var(--line)}caption{text-align:left;color:var(--muted);font-size:.85rem;margin-bottom:.8rem}button[aria-pressed=true]{background:var(--wine);color:white}.card>button+button{margin:.4rem 0 .4rem .4rem}
 
+/* Illustrated chandelier; flame height follows locally measured audio energy. */
+.voice-stage{display:flex;flex-direction:column;align-items:center;text-align:center;padding:1rem 0;gap:.6rem}
+.voice-candle{--voice-level:0;--flame-color:#ae3b24;--flame-light:#ffe7b0;display:block;position:relative;width:210px;height:308px;max-width:100%;border:0;border-radius:24px;padding:0;background:transparent;color:#a93321;opacity:1!important;isolation:isolate;transition:background .2s}
+.voice-candle:hover{background:#fff7ec60}.voice-candle:disabled{cursor:wait}
+.voice-candles{display:block;width:100%;height:100%;overflow:visible}
+.candle-ink{stroke:currentColor}.candle-flame{transform-box:fill-box;transform-origin:50% 100%;transform:scale(calc(1 + var(--voice-level)*.3),calc(1 + var(--voice-level)*.9));filter:drop-shadow(0 0 calc(2px + var(--voice-level)*12px) #eb8a3b50)}
+.flame-outer{fill:var(--flame-color)}.flame-inner{fill:var(--flame-light)}
+.candle-flame path{transform-box:fill-box;transform-origin:50% 100%;animation:candle-flicker 2.7s ease-in-out infinite alternate;animation-delay:var(--flicker-delay)}
+.voice-candle[data-phase=speaking]{--flame-color:#d88929;--flame-light:#fff2ba}
+.voice-candle[data-phase=listening]{--flame-color:#c04429;--flame-light:#ffd397}
+.voice-candle[data-phase=thinking]{--flame-color:#9e6a85;--flame-light:#eed5df}
+.voice-candle[data-phase=thinking] .candle-flame path{animation-duration:4s}
+.voice-candle[data-phase=error],.voice-candle[data-phase=replay]{--flame-color:#a87945}
+.voice-status{font-weight:600;margin:.7rem 0 0!important}.voice-stage small{min-height:1.5em}.voice-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:.5rem;margin-top:1rem}.voice-actions button{font-size:.8rem;background:transparent}.voice-text-option{font-size:.85rem}.voice-privacy{display:block;margin-top:1rem;max-width:580px}
+@keyframes candle-flicker{0%{transform:skewX(-3deg) scaleY(.98)}45%{transform:skewX(2deg) scaleY(1.04)}100%{transform:skewX(-1deg) scaleY(1.01)}}
+@media(prefers-reduced-motion:reduce){.voice-candle{transition:none}.candle-flame{transform:none;filter:none}.candle-flame path{animation:none}}
 #share-error:empty{display:none}
 .deck-step time{flex-shrink:0;white-space:nowrap}
 

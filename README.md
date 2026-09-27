@@ -520,3 +520,20 @@ docs/v2/UI_AUDIT.md
 
 Les modules app/ai.mjs, app.mjs, experiences.mjs, calendar.mjs et share-page.mjs
 portent le nettoyage produit. Les détails et diff de formulations sont dans l'audit.
+
+### Voix Gradium et intégration de la branche de Noé
+
+Discover contient le chandelier et le dialogue de Noé. Le bouton « Discuter avec
+Chandelle » ouvre la voix ou son alternative texte. La recommandation rejoint la
+même recherche web et les mêmes cartes qu'Ask ; aucun catalogue fictif ne sert de
+secours. Le journal personnel est accessible depuis Memories.
+
+Sous Windows, `scripts/run_ai.ps1` charge aussi `GRADIUM_ENABLED`,
+`GRADIUM_API_KEY` et `GRADIUM_VOICE_ID` depuis le `.env` privé. Les noms et valeurs
+désactivées sont dans `backend/integrations/.env.example` ; le guide détaillé est
+dans [docs/v2/GRADIUM.md](docs/v2/GRADIUM.md). Sans accès configurés, le dialogue
+reste utilisable au clavier. Les tests Gradium utilisent un fournisseur simulé.
+
+L'import iCal Google et les connexions OAuth Google/Outlook coexistent dans
+Disponibilités. L'import iCal est ponctuel et doit être relancé après modification
+de l'agenda ; il ne remplace pas une connexion OAuth.

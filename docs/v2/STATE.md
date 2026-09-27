@@ -65,6 +65,8 @@ Les modifications sont locales ; aucun commit, push ni déploiement dans cette m
 
 
 STATUS: STREAM_REORGANIZATION_COMPLETE
+
+STATUS: CONTINUOUS_MEMORY_COMPLETE
 V2_DONE = PASS
 MERGE_DONE = PASS
 LAST_UPDATED: 2026-09-27
@@ -119,6 +121,76 @@ Code courant sans suffixe de livraison : frontend/app, api/routes.py,
 backend/requirements.txt et scripts/run.sh. Routes et noms SQL versionnés conservés.
 `bash scripts/check.sh` passe après ces changements.
 
+## Mémoire continue — livraison du 2026-09-26
+
+Choix utilisateur confirmés : deux espaces privés + un espace commun dans une
+même base, historique complet conservé, préférences simples partagées
+automatiquement, goûts durables séparés des envies ponctuelles.
+
+- Questionnaire existant conservé ; B consolide maintenant les assertions entre
+  échanges, renforce les répétitions et conserve les versions corrigées.
+- Journal H privé persistant/paginé, reprenable via conversation_id. Recommandations
+  enregistrées aussi ; signaux structurés existants conservés.
+- Partage automatique limité à une allowlist exacte. Confidentialité explicite,
+  restriction/révocation antérieure, isolation par propriétaire et consentements
+  de recommandation préservés. L'avis de A ne corrige jamais celui de B.
+- Envies séparées avec valid_to à 30 jours ; exclusion après expiration, journal
+  toujours conservé. Suppression de faits, correction et effacement personnel
+  restent distincts.
+- Migration additive continuous_memory=1, reçus idempotents et transaction atomique
+  couvrant messages/faits/événements/index/snapshots. Renvois concurrents testés.
+- Interface : Memories → Mon journal personnel, messages échappés, choix de
+  confidentialité, horizon et désactivation de l'apprentissage pour un message.
+
+Validation finale : `bash scripts/check.sh` → code 0, **161 tests Python en 13.72s**,
+suites Node (dont journal) et parcours API PASS. 141 cas préexistants conservés,
+20 cas ajoutés. Tests Python sans réseau. Diff des chemins protégés vide.
+
+Limites : extraction locale volontairement limitée aux préférences explicites
+françaises/anglaises, sans compréhension générale du langage. Le journal n'est
+pas une conversation générative avec réponses d'assistant. Adaptateur OpenAI
+existant opt-in ; aucun appel live effectué. Mem0 non installé, frontière optionnelle
+conservée. Identité locale existante, pas authentification de production.
+Aucun test visuel dans un navigateur réel, commit, push ou déploiement.
+
+## Discover vocal Gradium — 2026-09-26
+
+Bouton Discover → Discuter avec Chandelle, dialogue guidé français par tours,
+transcription corrigible, synthèse et recommandation réelle via E/A/B/C.
+Adaptateur REST Gradium opt-in, clé uniquement serveur, mode texte disponible.
+Échange vocal temporaire sans apprentissage automatique ; plans persistés.
+Changements antérieurs de mémoire continue conservés. Configuration et limites
+dans [GRADIUM.md](GRADIUM.md). Lancer `bash scripts/run_voice.sh`.
+
+Validation : 171 tests Python et suites JS/API réussis ; fournisseur simulé.
+Aucun appel Gradium live, test micro réel, commit, push ou déploiement effectué par cette intervention.
+Cette section remplace uniquement la mention antérieure « Gradium non raccordé ».
+
+## Interface vocale compacte
+
+Discover affiche désormais un cercle coloré animé, sans historique ni transcription
+visibles. Bleu = lecture réelle, vert = parole utilisateur, violet = traitement.
+Prise terminée au clic ou après 45 s, transcription envoyée automatiquement.
+Clavier en volet fermé, interruption au clic, fermeture explicite, réduction
+des animations respectée. API Gradium et moteur de recommandation inchangés.
+
+Validation du cercle : `bash scripts/check.sh` → **171 passed in 16.40s**,
+suites JS et parcours API PASS. Aucun test visuel/micro réel effectué.
+
+## Google Calendar par lien iCal
+
+Nos disponibilités accepte maintenant l’adresse iCal Google de chaque personne.
+Le stream A calcule plages choisies moins événements, puis l’intersection du
+couple. Import ponctuel 1–31 jours, heures quotidiennes réglables, 30 minutes
+minimum. URL et événements non persistés ; date/période d’import propres au membre.
+Pas d’OAuth ni de synchronisation automatique. Les événements récurrents,
+exceptions, journées entières et fuseaux sont couverts. Échec = anciens créneaux
+conservés. Métadonnées effacées avec les données personnelles.
+Guide : [GOOGLE_CALENDAR.md](GOOGLE_CALENDAR.md). Bibliothèques iCalendar installées
+dans ce workspace ; aucun agenda personnel ni appel Google réel utilisé.
+
+Validation Google Calendar : `bash scripts/check.sh` → **193 passed in 18.74s**,
+suites JS et parcours API PASS. Aucun test sur agenda personnel ou navigateur réel.
 ## Intégration mémoire vidéo, 26 septembre 2026
 
 L'autorisation utilisateur vise explicitement ce dépôt. Les fichiers TypeScript
@@ -276,3 +348,63 @@ de confidentialité complète ajoutée : information juridique à terminer avant
 Serveur local redémarré après validation : le 27 septembre, HTTP 200 sur /api/v2/health,
 le schéma /openapi.json expose ActivityChoice et le mode auto. Vérification en lecture
 seule, sans appel externe. L'onglet local a été actualisé. Aucun commit ni push effectué.
+
+## Chandelier vocal — 2026-09-27
+
+Le cercle de Discover est remplacé par un chandelier SVG à trois bougies,
+inspiré du dessin fourni. Flammes dorées pendant la lecture, orangées pendant
+l’enregistrement ; taille pilotée par le volume RMS local, lissé et borné.
+Web Audio analyse le micro sans retour aux haut-parleurs et la synthèse réellement
+lue. Fermeture : annulation des animations, déconnexion et fermeture du contexte.
+Réduction des mouvements respectée. API et dialogue par tours inchangés.
+
+Validation : `bash scripts/check.sh` → **193 passed in 18.87s**, suites Node
+et parcours API PASS. Aucun essai visuel/micro dans un navigateur réel ni appel
+Gradium live. Modifications locales, non publiées.
+
+Correction de chargement : la capture utilisateur montrait encore le cercle malgré
+le code neuf servi sur localhost. URLs CSS, app et module vocal versionnées
+`chandelier-1` pour contourner un ancien cache. Vérification HTTP locale des quatre
+ressources réussie ; affichage navigateur utilisateur restant à confirmer.
+
+## Publication chandelier avec la branche partagée — 2026-09-27
+
+Le premier push a été refusé : noe/memory distant avait intégré main. Reprise du
+commit chandelier sur cette base, conservation des ajouts Discovery réel, AI et
+PWA/Reels. Résolution des conflits de documentation, imports, HTML et CSS.
+La base distante contenait des restes de fusion empêchant le démarrage : fonctions
+JS dupliquées, branches calendar/reel imbriquées et ancien bloc Python après le
+retour de conversation. Raccordements corrigés en conservant journal, durée des
+souvenirs, calendrier, Reels et point d’entrée vocal dans Discovery réel.
+Dépendances déclarées de l’équipe installées dans le venv local.
+
+Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
+12 skipped, 5 subtests passed in 21.18s**, suites Node et parcours API PASS.
+## Fusion locale avec les apports de Noé, 27 septembre 2026
+
+La demande utilisateur autorise la résolution de la fusion déjà engagée sur main
+entre 8906c0d (travail local) et 0208e08 (main distant, PR 5). Dix fichiers étaient
+en conflit. Les deux apports sont conservés : cartes/recherche web, OAuth et
+proactivité d'une part ; chandelier Gradium, journal mémoire et import iCal d'autre
+part. Les versions avant résolution et les patches sont sauvegardés dans le
+workspace Codex, sous `.runtime/merge-noe-20260927`.
+
+Le dialogue vocal rejoint PlanningService.query avec identité propriétaire,
+mode auto et pool composable. Les cartes restent visibles si aucun programme
+complet ne peut être construit. Aucun retour au catalogue fictif. Les détails
+manquants et l'absence de créneau commun sont expliqués. Un seul gestionnaire JS
+par action ; fin de la voix et destruction du deck à la navigation/changement de
+profil. Le journal de Noé conserve l'historique privé et ses reprises idempotentes ;
+le signal d'humeur explicite de G est préservé avec sa visibilité.
+
+Validation : 313 tests Python passent, huit suites Node, TypeScript strict,
+contrat DatePlan, vérification frontend/API et pip check passent. Parcours Edge
+375 px exécuté : chandelier, dialogue clavier, cartes issues du fournisseur
+simulé, garder, fermeture, recherche formulaire, journal et agendas. Aucun appel
+payant ou fournisseur réel. Serveur de test 8332 arrêté.
+
+Configuration Gradium locale : désactivée, clé et voix absentes du `.env` à la
+racine (valeurs jamais affichées). Le lanceur Windows charge maintenant GRADIUM_*.
+Point de reprise : guide GRADIUM.md pour configurer un compte de test, redémarrer
+le serveur utilisateur, puis tester réellement micro/transcription/synthèse.
+La fusion est locale ; aucun push ni déploiement effectué pendant cette opération.

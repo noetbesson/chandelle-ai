@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 let sequence=0;
 async function boot(saved,responses){
-  const calls=[];const listeners={};const app={innerHTML:''};const notice={};
-  globalThis.document={querySelector(selector){return selector==='#app'?app:selector==='#notice'?notice:null},querySelectorAll(){return[]},addEventListener(type,callback){listeners[type]=callback}};
+  const calls=[];const listeners={};const app={innerHTML:''};const main={innerHTML:''};const notice={};
+  globalThis.document={querySelector(selector){return selector==='#app'?app:selector==='#notice'?notice:selector==='#main'?main:null},querySelectorAll(){return[]},addEventListener(type,callback){listeners[type]=callback}};
   globalThis.localStorage={getItem(){return saved?JSON.stringify(saved):null},setItem(){}};
   globalThis.fetch=async(url,options)=>{calls.push({url,options});const data=responses[url];assert.notEqual(data,undefined,'Unexpected API request: '+url);return{ok:true,status:200,json:async()=>data}};
   await import('../app/app.mjs?test='+sequence++);await tick();
-  return{app,calls,listeners,async click(action,id){const button={dataset:{action,id}};await listeners.click({target:{closest(){return button}}});await tick()}};
+  return{app,main,calls,listeners,async click(action,id){const button={dataset:{action,id}};await listeners.click({target:{closest(){return button}}});await tick()}};
 }
 let ui=await boot(null,{});
 assert.match(ui.app.innerHTML,/Two people/);
@@ -43,3 +43,22 @@ globalThis.FormData=nativeFormData;
 assert.doesNotMatch(ui.app.innerHTML,new RegExp(privateIdentity),'Private identity answer must not replace public device identity labels');
 assert.match(ui.app.innerHTML,/Alex/);
 console.log('Frontend browserless checks: welcome gate, partial completion gate, private handoff, server resume, active token isolation, old-screen removal, pre-onboarding settings gate, private identity labels PASS');
+
+// Journal is loaded from owner-authenticated endpoints and escapes stored text.
+ui=await boot({couple_id:'c',members,active:'a'},{
+  '/api/v2/onboarding/status?couple_id=c':{completed:true,members},
+  '/api/v2/suggestions':{items:[]}, '/api/v2/date-plans':{items:[]},
+  '/api/v2/couples/c/profile':{},
+  '/api/v2/conversations':{items:[{id:'s1',created_at:'2026-09-26'}]},
+  '/api/v2/conversations/s1':{messages:[{content:'<script>PRIVATE JOURNAL</script>',created_at:'2026-09-26'}]},
+});
+await ui.listeners.click({target:{closest(){return {dataset:{route:'journal'}}}}});
+assert.match(ui.main.innerHTML,/&lt;script&gt;PRIVATE JOURNAL/);
+assert.doesNotMatch(ui.main.innerHTML,/<script>/);
+assert.match(ui.main.innerHTML,/id="conversation-form"/);
+assert.match(ui.main.innerHTML,/value="AUTO" selected/);
+assert.ok(ui.calls.filter(c=>c.url.includes('/conversations')).every(c=>c.options.headers['X-Member-Token']==='token-a'));
+await ui.click('switch','b');
+assert.match(ui.app.innerHTML,/Pass the device to Blair/);
+assert.doesNotMatch(ui.app.innerHTML,/PRIVATE JOURNAL/);
+console.log('Journal UI PASS: real owner endpoints, escaped history, automatic privacy choice, handoff.');

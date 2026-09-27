@@ -5,9 +5,11 @@ import re
 import hashlib
 import unicodedata
 from typing import Literal
+from types import SimpleNamespace
 from uuid import uuid4
 from pydantic import BaseModel, Field
-from backend.db import now
+from backend.db import now, encoded
+import json
 from backend.streams.B_memory.service import Privacy
 
 
@@ -61,45 +63,140 @@ def parse_request(text):
 
 
 
+TEMPORAL = r"\b(ce soir|aujourd'hui|demain|cette semaine|tonight|today|tomorrow)\b"
+
+
+def durable_preferences(text):
+    """Conservative local extraction: first-person assertions, no questions/quotes.
+
+    This intentionally does not turn every mention or request into a lasting taste.
+    """
+    results = []
+    pattern = re.compile(
+        r"^(?:i\s+(?P<en>love|like|enjoy|hate|dislike|avoid|don't like|do not like)|"
+        r"j['’](?P<fr>aime|adore)|je\s+(?P<fr2>déteste|deteste|préfère|prefere)|"
+        r"je\s+n['’]aime\s+(?P<neg>pas|plus)|(?P<want>je veux|j['’]ai envie de|i want))\s+(?P<value>.+)$", re.I)
+    for clause in re.split(r'[.!;\n]|\bmais\b|\bbut\b', text):
+        clause = clause.strip()
+        if '?' in clause:
+            continue
+        match = pattern.match(clause)
+        if not match:
+            continue
+        verb = normalize(next(v for v in (match['en'], match['fr'], match['fr2'], match['neg'], match['want']) if v))
+        negative = verb in {'hate', 'dislike', 'avoid', "don't like", 'do not like', 'deteste', 'pas', 'plus'}
+        temporary = bool(match['want'] or re.search(TEMPORAL, clause, re.I))
+        raw_value = re.sub(TEMPORAL, '', match['value'], flags=re.I).strip()
+        value = re.sub(r'^(?:(?:le|la|les|du|des|de la)\s+|l[’\'])', '', raw_value, flags=re.I).strip()
+        # Negated or attributed clauses need language understanding; do not guess.
+        if re.search(r"\b(pas|plus|not|because|parce que|dit|says)\b", value, re.I):
+            continue
+        if value:
+            results.append({'category': 'dislikes' if negative else 'interests',
+                            'value': value[:500], 'confidence': .85,
+                            'horizon': 'temporary' if temporary else 'durable'})
+    return results
+
+
 class Conversation(BaseModel):
-    text: str=Field(min_length=1,max_length=4000)
-    privacy_scope: Privacy='PRIVATE'
-    mode: Literal['offline','openai','auto']='offline'
+    text: str = Field(min_length=1, max_length=4000)
+    privacy_scope: Privacy = 'PRIVATE'
+    mode: Literal['offline', 'openai', 'auto'] = 'offline'
+    conversation_id: str | None = Field(default=None, max_length=100)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
+    horizon: Literal['durable', 'temporary'] = 'durable'
+    learn: bool = True
+    auto_share: bool = True
 
 
 class ConversationService:
     def __init__(self, db, memory):
         self.db, self.memory = db, memory
 
-    def ingest(self, member, body, adapter):
-        extraction=adapter.extract(body.text,member['id'])
-        sid=uuid4().hex
+    def _authorize(self, member, sid):
         with self.db.connect() as c:
-            c.execute('INSERT INTO v2_conversations VALUES(?,?,?,?)',(sid,member['couple_id'],member['id'],now()))
-            c.execute('INSERT INTO v2_messages VALUES(?,?,?,?,?)',(uuid4().hex,sid,member['id'],body.text,now()))
-        facts=[]
-        existing=self.memory.list_facts(member['couple_id'],'PERSON',member['id'],member['id'])
-        # A literal self declaration keeps the user's chosen visibility and real timestamp.
-        from backend.streams.G_proactive.mood_rules import explicit_mood
-        mood=explicit_mood(body.text)
-        if mood:
-            facts.append(self.memory.ingest(member['couple_id'],'PERSON',member['id'],member['id'],
-                'experience','discussion:mood',{'text':'Je suis '+mood,'signal_at':now(),'horizon':'temporary'},
-                body.privacy_scope,'conversation',confidence=.8))
-        for f in extraction.facts:
-            if f.confidence < .7:continue
-            canonical, negative=interests(f.value)
-            values=canonical or negative or [f.value]
-            value={'values':values,'horizon':'durable' if f.category=='dislikes' else getattr(f,'horizon','durable'),'signal_at':now()}
-            if f.category=='budget':
-                budget=parse_request(f.value)['budget']
-                if budget is None or not re.search(r'par personne|chacun|per person|each|pour deux|for two|couple|total',normalize(f.value)):continue
-                value={'max':budget,'unit':'couple','flexible':False}
-            key='discussion:'+f.category+':'+hashlib.sha256(str(values).encode()).hexdigest()[:20]
-            previous=next((old for old in existing if old['key']==key and old['privacy_scope']==body.privacy_scope),None)
-            if previous:
-                facts.append(previous)
-                continue
-            facts.append(self.memory.ingest(member['couple_id'],'PERSON',member['id'],member['id'],f.category,key,value,body.privacy_scope,'conversation',confidence=f.confidence))
-        return {'conversation_id':sid,'facts':facts,'mode':adapter.last_mode,'fallback':adapter.last_fallback,
-                'reply':f"{len(facts)} information(s) retenue(s). Vous pouvez les corriger ou les supprimer dans votre mémoire." if facts else "Je n’ai pas identifié de préférence explicite à retenir. Dites par exemple : j’aime le jazz, ou je préfère éviter les lieux bruyants."}
+            row = c.execute('SELECT id FROM v2_conversations WHERE id=? AND user_id=? AND couple_id=?',
+                            (sid, member['id'], member['couple_id'])).fetchone()
+        if row is None:
+            raise PermissionError('Unknown personal conversation')
+
+    def history(self, member, sid):
+        self._authorize(member, sid)
+        with self.db.connect() as c:
+            messages = [dict(r) for r in c.execute(
+                'SELECT id,content,created_at FROM v2_messages WHERE conversation_id=? AND user_id=? ORDER BY created_at,id',
+                (sid, member['id']))]
+        return {'conversation_id': sid, 'messages': messages}
+
+    def list(self, member, limit=100, offset=0):
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError('Invalid journal pagination')
+        with self.db.connect() as c:
+            return {'items': [dict(r) for r in c.execute(
+                'SELECT id,created_at FROM v2_conversations WHERE user_id=? AND couple_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?',
+                (member['id'], member['couple_id'], limit, offset))], 'limit': limit, 'offset': offset,
+                'total': c.execute('SELECT count(*) FROM v2_conversations WHERE user_id=? AND couple_id=?',
+                                   (member['id'], member['couple_id'])).fetchone()[0]}
+
+    def _replay(self, member, key, fingerprint):
+        if not key:
+            return None
+        with self.db.connect() as c:
+            previous = c.execute('SELECT * FROM v2_memory_interactions WHERE user_id=? AND request_key=?',
+                                 (member['id'], key)).fetchone()
+        if previous is None:
+            return None
+        if previous['fingerprint'] != fingerprint:
+            raise ValueError('Idempotency key already used for a different interaction')
+        # Re-read current authorized state: replay cannot resurrect deleted facts.
+        active = self.memory.list_facts(member['couple_id'], 'PERSON', member['id'], member['id'])
+        ids = set(json.loads(previous['fact_ids']))
+        return {'conversation_id': previous['conversation_id'], 'interaction_id': previous['id'],
+                'facts': [f for f in active if f['id'] in ids], 'mode': previous['mode'], 'replayed': True}
+
+    def ingest(self, member, body, adapter):
+        self.memory._member(member['couple_id'], member['id'])
+        if body.conversation_id:
+            self._authorize(member, body.conversation_id)
+        if not body.text.strip():
+            raise ValueError('Message cannot be empty')
+        fingerprint = hashlib.sha256(encoded({**body.model_dump(exclude={'idempotency_key'}), 'explicit_privacy': 'privacy_scope' in body.model_fields_set}).encode()).hexdigest()
+        replay = self._replay(member, body.idempotency_key, fingerprint)
+        if replay is not None:
+            return replay
+        # Provider work happens before the write transaction and only by opt-in.
+        candidates = []
+        if body.learn:
+            extraction = adapter.extract(body.text, member['id'])
+            if adapter.last_mode == 'offline':
+                candidates = [SimpleNamespace(**f) for f in durable_preferences(body.text)]
+            else:
+                candidates = [SimpleNamespace(**f.model_dump(), horizon='temporary' if re.search(TEMPORAL, body.text, re.I) else body.horizon) for f in extraction.facts]
+        sid, iid, mid = body.conversation_id or uuid4().hex, uuid4().hex, uuid4().hex
+        with self.db.atomic():
+            replay = self._replay(member, body.idempotency_key, fingerprint)
+            if replay is not None:
+                return replay
+            if body.conversation_id:
+                self._authorize(member, sid)
+            with self.db.connect() as c:
+                if not body.conversation_id:
+                    c.execute('INSERT INTO v2_conversations VALUES(?,?,?,?)', (sid, member['couple_id'], member['id'], now()))
+                c.execute('INSERT INTO v2_messages VALUES(?,?,?,?,?)', (mid, sid, member['id'], body.text, now()))
+            facts = self.memory.learn(member['couple_id'], member['id'], candidates,
+                                      body.privacy_scope, iid, body.horizon,
+                                      auto_share=body.auto_share and 'privacy_scope' not in body.model_fields_set)
+            # Preserve the explicit mood signal used by G, with the author's visibility.
+            from backend.streams.G_proactive.mood_rules import explicit_mood
+            mood = explicit_mood(body.text) if body.learn else None
+            if mood:
+                facts.append(self.memory.ingest(member['couple_id'], 'PERSON', member['id'], member['id'],
+                    'experience', 'discussion:mood', {'text': 'Je suis ' + mood, 'signal_at': now(), 'horizon': 'temporary'},
+                    body.privacy_scope, 'conversation', confidence=.8, idempotency_key=iid))
+            with self.db.connect() as c:
+                c.execute('INSERT INTO v2_memory_interactions VALUES(?,?,?,?,?,?,?,?)',
+                    (iid, member['id'], sid, mid, body.idempotency_key, fingerprint,
+                     encoded([f['id'] for f in facts]), adapter.last_mode))
+        return {'conversation_id': sid, 'interaction_id': iid, 'facts': facts,
+                'mode': adapter.last_mode, 'fallback': adapter.last_fallback, 'replayed': False,
+                'reply': f"{len(facts)} information(s) retenue(s). Vous pouvez les corriger dans votre mémoire." if facts else "Message enregistré. Aucune préférence explicite à retenir."}
