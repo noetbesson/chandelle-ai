@@ -11,6 +11,9 @@ def main():
     os.environ['GRADIUM_ENABLED']='0'
     os.environ['REELS_LIVE_ENABLED']='0'
     os.environ['REELS_NORMALIZATION_BACKEND']='local'
+    os.environ['PROACTIVE_SCHEDULER_ENABLED']='0'
+    os.environ['PROACTIVE_MOOD_OPENAI']='0'
+    os.environ['DATE_SCORING_BACKEND']='local'
     if sys.platform == 'win32':
         # Asyncio needs a private socket pair on Windows. Only this internally
         # created loopback pair bypasses the network guard, never API clients.

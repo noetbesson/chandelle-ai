@@ -127,3 +127,17 @@ def test_dialogue_bounds_and_no_feasible_plan(client):
         assert client.put('/api/v2/availability', headers=headers(person), json={'slots': []}).status_code == 200
     result = client.post('/api/v2/discover/chat', headers=headers(a), json={'messages': ['Une balade'], 'recommend': True}).json()
     assert result['plans'] == [] and 'disponibilités' in result['reply']
+
+
+def test_voice_keeps_web_cards_when_details_do_not_allow_composition(client):
+    _, a, _ = ready(client)
+    def unknown_prices(activities):
+        return [{**activity, 'price': None, 'price_unit': 'unknown', 'start': None, 'end': None, 'schedule_status': 'unknown'} for activity in activities]
+    client.app.state.web_provider.override = unknown_prices
+    result = client.post('/api/v2/discover/chat', headers=headers(a),
+        json={'messages': ['Un restaurant japonais'], 'recommend': True}).json()
+    assert result['activities'] and result['plans'] == []
+    assert all(not activity['demo'] and activity['source_url'] for activity in result['activities'])
+    assert 'confirmer' in result['reply'] and 'démonstration' not in result['reply']
+    assert result['run_id']
+    assert any(step['stage'] == 'web_search' for step in result['trace'])

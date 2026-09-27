@@ -95,7 +95,7 @@ ceux des tests ont été mis à jour ; les assertions de régression sont conser
 
 - Conserver les tests : ils spécifient confidentialité, budget, faisabilité et compatibilité.
 - Conserver `db/database.py` : schéma unique et migrations rétrocompatibles.
-- Conserver les fixtures réellement lues : `mocks/E`, `mocks/peer` et le catalogue V1 de C.
+- Aucun catalogue fictif dans le produit. Les contrats fournisseur sont générés uniquement dans les tests ; Ask et Discover passent par le même service web.
 - Les anciens exemples input/output, READMEs de streams, rapports et consignes de
   construction sont réunis dans `archive/HISTORY.md`, avec leurs chemins d’origine.
 - Les interfaces de fournisseurs sans appelant ont été retirées ; l’adaptateur

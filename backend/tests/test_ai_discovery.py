@@ -17,11 +17,9 @@ class Response:
     usage = SimpleNamespace(model_dump=lambda: {'input_tokens': 500, 'output_tokens': 200})
 
     def model_dump(self):
-        return {'status': 'completed', 'output': [
-            {'type': 'web_search_call', 'status': 'completed'},
-            {'type': 'message', 'content': [{'type': 'output_text', 'text': 'Exposition à Paris [source]',
-                'annotations': [{'type': 'url_citation', 'url': 'https://www.paris.fr/evenements/example',
-                                 'title': 'Agenda Paris', 'start_index': 19, 'end_index': 27}]}]}]}
+        return {'status':'completed','output':[
+            {'type':'web_search_call','status':'completed','action':{'type':'search','sources':[{'url':'https://www.paris.fr/evenements/example'}]}},
+            {'type':'message','content':[{'type':'output_text','text':json.dumps({'activities':[],'note':'Aucune piste dans ce test.'}),'annotations':[]}]}]}
 
 
 class Client:
@@ -75,7 +73,9 @@ def test_web_citations_persist_cache_is_owned_and_expires(client, monkeypatch):
     request = WebQuery(text='Une exposition à Paris', cloud_consent=True)
     result = web.search(a, request)
     assert result['status'] == 'completed'
-    assert result['sources'][0]['url'].startswith('https://www.paris.fr/')
+    assert result['tool_calls']==result['search_calls']==1
+    assert result['tool_limit']==4 and result['result_limit']==16
+    assert result['sources'][0]['url'].startswith('https://paris.fr/')
     assert web.search(a, request)['cached'] is True
     assert len(fake.calls) == 1
     assert not web.search(b, request)['cached']
@@ -85,8 +85,8 @@ def test_web_citations_persist_cache_is_owned_and_expires(client, monkeypatch):
     assert not web.search(a, request)['cached']
     assert len(fake.calls) == 3
     call = fake.calls[0]
-    assert call['max_tool_calls'] == 1 and call['store'] is False
-    assert call['max_output_tokens'] == 1600
+    assert call['max_tool_calls'] == 4 and call['store'] is False
+    assert call['max_output_tokens'] == 9000
     assert 'PRIVATE_ONBOARDING_SENTINEL' not in call['input']
 
 
@@ -97,6 +97,7 @@ def test_consent_disabled_quota_and_uncited_response(client, monkeypatch):
     web = WebDiscovery(state['db'], state['memory'], fake)
     with pytest.raises(ValueError):web.search(a, WebQuery(text='Paris'))
     body = WebQuery(text='Paris', cloud_consent=True)
+    monkeypatch.setenv('OPENAI_WEB_ENABLED','0')
     assert web.search(a, body)['status'] == 'unavailable'
     assert not fake.calls
     enable(monkeypatch)
@@ -121,20 +122,21 @@ def test_web_failure_redacts_provider_error(client, monkeypatch):
     assert 'SECRET_SENTINEL' not in json.dumps(result)
 
 
-def test_new_routes_require_identity_and_consent(client):
-    assert client.post(PREFIX+'/discovery/web',json={'text':'Paris','cloud_consent':True}).status_code in (401,403)
-    _, a, _ = ready(client)
-    assert client.post(PREFIX+'/discovery/web',headers=headers(a),json={'text':'Paris'}).status_code == 422
-    result = client.post(PREFIX+'/discovery/web',headers=headers(a),json={'text':'Paris','cloud_consent':True})
-    assert result.json()['reason'] == 'not_configured_or_disabled'
-    assert client.get(PREFIX+'/ai/budget',headers=headers(a)).json()['total_reserved'] == 0
+def test_search_alias_requires_identity_and_returns_same_cards(client):
+    assert client.post(PREFIX+'/discovery/web',json={'text':'Paris'}).status_code in (401,403)
+    _,a,_=ready(client)
+    data=client.post(PREFIX+'/discovery/web',headers=headers(a),json={'text':'Une balade à Paris','processing':'standard'}).json()
+    assert data['activities'] and data['search_id'] and data['trace']
 
 
 def test_french_conversation_changes_ranking_without_leaking_or_duplicates(client):
     couple, a, b = ready(client)
     state = client.app.state.v2
     window = {'start':'2026-09-26T18:00:00','end':'2026-09-26T23:59:00'}
-    before = state['catalog'].discover(couple['couple_id'],window,limit=100)
+    from backend.tests.test_api import query
+    query(client,a)
+    with state['db'].connect() as c:ids={r[0] for r in c.execute('SELECT id FROM v2_activities')}
+    before = state['catalog'].discover(couple['couple_id'],window,limit=100,candidate_ids=ids)
     body = {'text':"J'aime le jazz. Je déteste le cinéma.",'privacy_scope':'COUPLE_RECOMMENDATION'}
     first = client.post(PREFIX+'/conversations',headers=headers(a),json=body)
     assert first.status_code == 200
@@ -143,8 +145,9 @@ def test_french_conversation_changes_ranking_without_leaking_or_duplicates(clien
     context = state['memory'].planning_context(couple['couple_id'])
     assert 'jazz' in context['person_a']['interests']
     assert 'cinema' in context['person_a']['dislikes']
-    after = state['catalog'].discover(couple['couple_id'],window,limit=100)
-    assert any(x['activity']['category']=='cinema' for x in before)
+    after = state['catalog'].discover(couple['couple_id'],window,limit=100,candidate_ids=ids)
+    assert any(x['activity']['category']=='concerts' for x in before)
+    assert next(x['couple_score'] for x in after if x['activity']['category']=='concerts')>next(x['couple_score'] for x in before if x['activity']['category']=='concerts')
     assert not any(x['activity']['category']=='cinema' for x in after)
     partner = client.get(PREFIX+'/memories',headers=headers(b)).text
     assert 'discussion:' not in partner
@@ -163,3 +166,51 @@ def test_temporary_conversation_expires_but_exclusion_remains(client):
     profile=state['memory'].planning_context(couple['couple_id'])['person_a']
     assert 'jazz' not in profile['interests']
     assert 'sport' in profile['dislikes']
+
+
+def test_ask_plan_constraints_reach_provider_and_separate_cache(client, monkeypatch):
+    _, a, _ = ready(client)
+    enable(monkeypatch)
+    state = client.app.state.v2
+    fake = Client()
+    web = WebDiscovery(state['db'], state['memory'], fake)
+    body = WebQuery(text='Japonais puis balade à Paris', cloud_consent=True,
+                    plan={'budget':80,'date':'2026-09-27','time':'19:30','activity_count':2,'radius_km':5})
+    assert web.search(a, body)['status'] == 'completed'
+    sent = json.loads(fake.calls[0]['input'])
+    assert sent['plan']['budget'] == 80
+    assert sent['plan']['time'] == '19:30:00'
+    assert sent['plan']['activity_count'] == 2
+    assert web.search(a, body)['cached'] is True
+    assert not web.search(a, body.model_copy(update={'plan':body.plan.model_copy(update={'budget':50})}))['cached']
+    assert len(fake.calls) == 2
+    assert 'PRIVATE_ONBOARDING_SENTINEL' not in json.dumps(fake.calls)
+
+
+def test_ask_rejects_invalid_constraints_before_provider(client):
+    _, a, _ = ready(client)
+    for plan in [{'budget':-1},{'date':'tomorrow'},{'activity_count':4},{'radius_km':999}]:
+        result = client.post(PREFIX+'/discovery/web',headers=headers(a),json={
+            'text':'Une sortie à Paris','cloud_consent':True,'plan':plan})
+        assert result.status_code == 422
+
+
+@pytest.mark.parametrize('key,value',[('OPENAI_WEB_MAX_TOOL_CALLS','100'),('OPENAI_WEB_MAX_TOOL_CALLS','0'),('OPENAI_WEB_RESULT_LIMIT','100'),('OPENAI_WEB_MAX_TOOL_CALLS','bad')])
+def test_invalid_search_depth_never_bills(client,monkeypatch,key,value):
+    _,a,_=ready(client);enable(monkeypatch);state=client.app.state.v2;fake=Client()
+    before=AIBudget(state['db']).status()['total_reserved']
+    monkeypatch.setenv(key,value)
+    result=WebDiscovery(state['db'],state['memory'],fake).search(a,WebQuery(text='Une balade à Paris',processing='standard'))
+    assert result['reason']=='invalid_search_configuration' and not fake.calls
+    assert AIBudget(state['db']).status()['total_reserved']==before
+
+
+def test_search_depth_separates_cache_and_honors_lower_cap(client,monkeypatch):
+    _,a,_=ready(client);enable(monkeypatch);state=client.app.state.v2;fake=Client()
+    web=WebDiscovery(state['db'],state['memory'],fake);request=WebQuery(text='Une balade à Paris',processing='standard')
+    first=web.search(a,request);assert first['tool_limit']==4
+    monkeypatch.setenv('OPENAI_WEB_MAX_TOOL_CALLS','2');monkeypatch.setenv('OPENAI_WEB_RESULT_LIMIT','8')
+    second=web.search(a,request)
+    assert not second['cached'] and len(fake.calls)==2
+    assert fake.calls[-1]['max_tool_calls']==2 and second['result_limit']==8
+    assert web.search(a,request)['cached']

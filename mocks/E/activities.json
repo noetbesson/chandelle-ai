@@ -1,6 +1,0 @@
-[
-  {"id":"japanese_dinner","type":"restaurant","name":"Japanese dinner","start":"20:00","end":"21:15","price_per_person":35,"location":{"lat":48.8500,"lng":2.3400},"match_score":0.86,"tags":["japanese_food"],"booking_url":null},
-  {"id":"jazz_club","type":"live_music","name":"Jazz club","start":"21:35","end":"23:15","price_per_person":17,"location":{"lat":48.8505,"lng":2.3410},"match_score":0.89,"tags":["jazz"],"booking_url":null},
-  {"id":"standup","type":"comedy","name":"Standup show","start":"21:30","end":"22:45","price_per_person":20,"location":{"lat":48.8510,"lng":2.3405},"match_score":0.81,"tags":["standup"],"booking_url":null},
-  {"id":"formal_dinner","type":"restaurant","name":"Formal restaurant","start":"20:00","end":"21:30","price_per_person":55,"location":{"lat":48.8600,"lng":2.3500},"match_score":0.94,"tags":["formal_restaurants"],"booking_url":null}
-]

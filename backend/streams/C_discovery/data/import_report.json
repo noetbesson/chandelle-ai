@@ -1,0 +1,81 @@
+{
+  "files": [
+    {
+      "file": "allocine.xlsx",
+      "bytes": 63343,
+      "sha256": "903c793b4c7c6343178c3b70da5e558ea0d6b20d9e64a8f0914ffb96f2731594",
+      "rows": 105
+    },
+    {
+      "file": "Café.xlsx",
+      "bytes": 89175,
+      "sha256": "2362055147271d0799bb3ca4181233fc2226065c33b1434b08060977f341b466",
+      "rows": 507
+    },
+    {
+      "file": "Cheap restaurant.xlsx",
+      "bytes": 432584,
+      "sha256": "ffe0c8a542a08fc7959e9a381402e3589dad07064f73b82e0d25ae81c117f03e",
+      "rows": 2317
+    },
+    {
+      "file": "Dessert.xlsx",
+      "bytes": 90825,
+      "sha256": "805891ffb6e37f8e9773dbea694c0714436482cd11a098acd38e3279027c1b5e",
+      "rows": 481
+    },
+    {
+      "file": "Medium priced restaurant.xlsx",
+      "bytes": 712415,
+      "sha256": "cc8720c69192fd17ad25760f3334f869e7a410487c3714e495520835eb357720",
+      "rows": 3647
+    },
+    {
+      "file": "Resto chic.xlsx",
+      "bytes": 189490,
+      "sha256": "fe053c47c99a11616bdcd096a3b75a1d88bc5ed4383b237737f53c2029accebc",
+      "rows": 944
+    },
+    {
+      "file": "Sortir à paris.xlsx",
+      "bytes": 142825,
+      "sha256": "8b5cae381507b98f0c833d90dc6a36cf514ff1409a72e8fdbf5b304074ec471d",
+      "rows": 632
+    },
+    {
+      "file": "Bar.xlsx",
+      "bytes": 37915,
+      "sha256": "daefd4399b2e9b49d87378d77df00d2b46f73058e641a942a40669bdfa952761",
+      "rows": 160
+    }
+  ],
+  "valid_source_rows": 8793,
+  "duplicate_rows": 162,
+  "ignored_nondata_rows": 267,
+  "conflicts": 4,
+  "unique_records": 8631,
+  "by_source": {
+    "allocine": 105,
+    "mistergoodbeer": 160,
+    "sortiraparis": 606,
+    "tripadvisor": 7760
+  },
+  "by_eligibility": {
+    "reference": 119,
+    "candidate": 8287,
+    "needs_location": 224,
+    "cancelled": 1
+  },
+  "source_bytes": 1758572,
+  "normalized_bytes": 5321109,
+  "bundle_bytes": 495119,
+  "format_version": 1,
+  "notes": [
+    "Original exports preserved.",
+    "Dollar symbols are price tiers, never EUR amounts.",
+    "Pint starting prices are not per-person outing budgets; offers remain unverified.",
+    "Import date is not a verification date.",
+    "Films are references, not screenings.",
+    "Only a shortlist is sent to web search when needed."
+  ]
+}

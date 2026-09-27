@@ -29,6 +29,7 @@ class Received:
     signal_at: str | None
     share_with_couple: bool
     cloud_consent: bool
+    processing: str = "legacy"
 
 
 def cleanup(job_id: str, settings: Settings) -> None:
@@ -65,7 +66,7 @@ async def receive(request: Request, settings: Settings) -> Received:
                 raise ReelError("SIZE", "Vidéo trop volumineuse.", 413)
             yield part
 
-    parser = MultiPartParser(request.headers, bounded_stream(), max_files=1, max_fields=7, max_part_size=10000)
+    parser = MultiPartParser(request.headers, bounded_stream(), max_files=1, max_fields=8, max_part_size=10000)
     # Bounded in-memory parser: no spool to a system temp folder outside this copy.
     parser.spool_max_size = maximum + 1
     try:
@@ -80,7 +81,7 @@ async def receive(request: Request, settings: Settings) -> Received:
         raise ReelError("FORMAT", "Formulaire ou fichier non pris en charge.", 415) from None
     job_id = str(uuid4())
     try:
-        allowed = {"video", "caption", "source_url", "consent", "cloud_consent", "share_with_couple", "signal_at"}
+        allowed = {"video", "caption", "source_url", "consent", "cloud_consent", "share_with_couple", "signal_at", "processing"}
         keys = [key for key, _ in form.multi_items()]
         if len(keys) != len(set(keys)) or set(keys) - allowed:
             raise ReelError("VALIDATION", "Champ inconnu ou répété.", 422)
@@ -124,6 +125,9 @@ async def receive(request: Request, settings: Settings) -> Received:
                 stamp = date.astimezone(timezone.utc).isoformat()
         except ValueError:
             raise ReelError("VALIDATION", "Lien HTTPS ou date d'origine invalide.", 422) from None
+        processing = text("processing") or "legacy"
+        if processing not in {"legacy", "standard"}:
+            raise ReelError("VALIDATION", "Mode de traitement invalide.", 422)
         cloud = flag("cloud_consent")
         shared = flag("share_with_couple")
         directory = settings.work_dir.resolve() / job_id
@@ -135,7 +139,7 @@ async def receive(request: Request, settings: Settings) -> Received:
                 output.write(chunk)
                 digest.update(chunk)
         fingerprint = sha256(canonical_url(url).encode()).hexdigest() if url else digest.hexdigest()
-        return Received(job_id, path, caption, url, fingerprint, stamp, shared, cloud)
+        return Received(job_id, path, caption, url, fingerprint, stamp, shared, cloud, processing)
     except BaseException:
         cleanup(job_id, settings)
         raise

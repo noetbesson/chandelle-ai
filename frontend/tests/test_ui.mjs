@@ -39,7 +39,7 @@ assert.doesNotMatch(ui.app.innerHTML,/aria-label="Main navigation"/,'Pre-onboard
 const privateIdentity='SECRET PRIVATE IDENTITY';
 ui=await boot({couple_id:'c',members,active:'a'},{'/api/v2/onboarding/status?couple_id=c':{completed:false,members:[{...members[0],status:'in_progress'},{...members[1],status:'not_started'}]},'/api/v2/onboarding/couples/c/members/a':{current_step:2,answers:[{step:1,value:{name:privateIdentity},privacy_scope:'PRIVATE'}]},'/api/v2/onboarding/couples/c/members/a/answers':{current_step:2}});
 await ui.click('interview','a');
-globalThis.HTMLFormElement=class {id='interview';dataset={step:'1'};querySelectorAll(){return[]}};
+globalThis.HTMLFormElement=class {id='interview';dataset={step:'1'};querySelector(){return null}querySelectorAll(){return[]}};
 const nativeFormData=globalThis.FormData;
 globalThis.FormData=class {get(key){return {name:privateIdentity,pronouns:'',privacy_scope:'PRIVATE'}[key]}};
 await ui.listeners.submit({target:new HTMLFormElement(),preventDefault(){},submitter:{}});

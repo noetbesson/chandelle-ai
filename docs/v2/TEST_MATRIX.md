@@ -1,5 +1,104 @@
 # Test evidence
 
+## 27 septembre 2026 : profondeur et coût de recherche
+
+À la demande de Maxime, le plafond passe de 2 à 4 appels outils web par demande,
+avec un objectif de 16 fiches distinctes au maximum, réparties entre catégories.
+La requête est ciblée par le texte utilisateur, les catégories, le budget, la date,
+la zone et, sur choix explicite, les thèmes partagés autorisés du couple. Les notes
+privées et les refus personnels ne sont pas envoyés au web ; le filtrage local reste
+applicable et cette hausse ne corrige pas les refus éliminant les résultats.
+
+Réglages : `OPENAI_WEB_MAX_TOOL_CALLS=4` (1..4), `OPENAI_WEB_RESULT_LIMIT=16` (1..16),
+9 000 tokens de sortie, timeout 50 s, zéro retry. Configuration invalide : aucun
+appel payant. Le cache tient compte de la profondeur. Les traces distinguent maintenant
+le nombre de fiches brutes, d'appels outils terminés, de recherches (`action.type=search`)
+et de sources. Les anciens historiques ne permettent pas de compter les appels outils
+exacts ; leurs tokens sont enregistrés, pas la facture fournisseur.
+
+Plafond local de réservations : 2 USD/jour sur cette machine (anciennement 1), total
+10 USD conservé ; 0,10 USD réservé par tentative web et 0,02 USD par analyse. Ce sont
+des allocations prudentes, pas les coûts facturés ni un solde OpenAI.
+
+Tarifs consultés dans OpenAI Docs le 27/09/2026 : recherche web 10 USD/1 000 appels ;
+GPT-4.1-mini entrée 0,40 USD/million de tokens, sortie 1,60 USD/million. Le contenu
+web est facturé par bloc fixe de 8 000 tokens d'entrée/appel. Donc 100 appels outils
+représentent 1,32 USD avant les autres tokens. Estimation de 100 demandes complètes
+utilisant chacune quatre recherches : environ 6 à 10 USD selon les tokens, hors taxes,
+services additionnels et éventuels tarifs différents. Ce n'est pas un devis garanti.
+Sources : https://developers.openai.com/api/docs/pricing et
+https://developers.openai.com/api/docs/models/gpt-4.1-mini .
+
+Validation : `python scripts/test_offline.py backend/tests/test_ai_discovery.py
+backend/tests/test_web_pipeline.py backend/tests/test_date_deck.py --tb=short
+--basetemp .runtime/search-depth-tests` : **40 passed in 43.25s**. Fournisseurs simulés,
+aucun appel API payant effectué pour cette modification. Le plafond configuré ne
+prouve pas que le modèle utilise quatre recherches ou retourne seize lieux.
+
+
+## Recherche web et cartes communes, 27 septembre 2026
+
+### Régressions locales exécutées
+
+`python scripts/test_offline.py --tb=short --basetemp .runtime/web-regression-final`
+: **255 passed in 150.05s**. Réseau interdit ; fournisseurs simulés. Journal :
+`.runtime/web-regression-final.txt`. Les tests qui dépendaient des anciens catalogues
+utilisent des réponses fournisseur injectées. Les algorithmes, l'authentification,
+la mémoire et les agendas gardent leurs vérifications.
+
+Sept suites Node passent : `test_ai`, `test_ui`, `test_experiences`, `test_share`,
+`test_calendar`, `test_date_deck`, `test_activity_cards`. Compilation TypeScript et
+`generate_date_contract.py --check` réussis. Tous les modules app `.mjs` passent
+`node --check`. `verify_frontend_api.py` passe avec le fournisseur de test injecté.
+
+`test_activity_cards_browser.cjs` : navigateur Edge, 375×812 et desktop, vraie API
+locale avec SQLite isolée et fournisseur simulé. Swipe réel, clavier, garder/passer,
+sélection entre vues, chevauchement, erreur/reprise de composition, remplacement
+sans modifier l'autre étape, confirmation et changement d'identité : PASS.
+`test_web_cards_browser.cjs` : Ask/Discover même route, source affichée, prix inconnu,
+réponse réelle enregistrée rendue dans les cartes et trois états vides distincts : PASS.
+Le rendu de la preuve enregistrée ne constitue pas un deuxième appel fournisseur.
+Les captures `.runtime/web-live-cards-mobile.png` et `web-live-cards-desktop.png`
+ont été inspectées. Aucun test sur téléphone physique n'est revendiqué.
+
+### Appels réellement exécutés, distincts des simulations
+
+`RUN_LIVE_WEB_PIPELINE=1 python scripts/live_web_pipeline.py`, profil de test isolé,
+clé du serveur et réservations du quota SQLite principal. Deux exécutions seulement.
+
+1. Première réponse : 10 fiches brutes, 9 valides/citées, 0 après le filtre IDF.
+   Cause observée : département « Paris » au lieu du code « 75 ». Après correction,
+   rejeu de la réponse enregistrée sans nouvel appel : 9 passent la région, 1 est
+   hors du créneau, **8 cartes**. Une seule fiche possède tous les champs nécessaires
+   à la composition ; **0 programme**. Preuve : `.runtime/web-live-replayed.json`.
+2. Deuxième appel après correction : HTTP 200, analyse OpenAI sans fallback, 4 fiches
+   valides/citées qui décrivent le même restaurant SuMiBi Kaz. Tous les filtres de
+   critères conservent les 4, déduplication 4 → 1. **1 carte, 0 programme**, prix et
+   horaires inconnus, aucune balade proposée. Preuves : `.runtime/web-live-result.json`
+   et `.runtime/web-live-run-2.txt`. La carte et son lien source ont été rendus dans
+   le navigateur. Aucun tarif, durée ou disponibilité n'a été ajouté pour remplir un plan.
+
+Les anciennes recherches à zéro du 27/09 à 11:55 UTC n'enregistraient ni la demande
+ni les critères analysés. Leur filtre exact est donc indéterminable rétrospectivement.
+Le rejeu local indicatif « japonais puis balade », 70 EUR, dans leur fenêtre du vendredi
+02/10, conserve cinq anciennes activités. Ce n'est pas une preuve de leur requête exacte.
+Ne pas attribuer ce cas historique au bug département constaté dans le nouveau test live.
+
+### Couverture des causes de perte
+
+`test_web_pipeline.py` vérifie séparément région, budget, catégorie, indisponibilité,
+horaire, goût demandé, expiration, sortie malformée et URL non citée, avec compteurs
+avant/après et état vide lisible. Test de régression « Paris » et doublons inclus.
+Les autres filtres ont chacun une trace : rayon, refus, jours, accessibilité,
+alimentation et mobilité. Les champs inconnus sont comptés ; ils ne sont pas considérés
+comme une preuve de conformité à une contrainte dure. Réponse vide et panne distinctes,
+upsert idempotent, mise à jour du prix et conservation du cache en panne vérifiés.
+
+Recherche exhaustive des anciens noms de fichiers/seed et collecteurs dans backend,
+frontend, scripts, mocks et README : aucun import/appel résiduel. Les mentions dans
+les rapports historiques décrivent les étapes antérieures ; ce bloc les remplace.
+
+
 ## Gate 0
 Executed `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider`: **31 passed in 0.50s**.
 Future required gates: B isolation/reopen/conflicts/retrieval/privacy; onboarding idempotency/resume/consent; C fairness/constraints; fake OpenAI and network guard; plans/reviews/uploads; G persistent actions; API errors/static/browserless end-to-end; complete regression.
@@ -295,6 +394,74 @@ fusion. Après résolution des conflits, relancer les tests Python des
 deux branches, les tests JavaScript et le parcours Discover combiné.
 Ne pas additionner les nombres de tests annoncés.
 
+
+## Test OpenAI réel autorisé, 26 septembre 2026
+
+Chargement du .env racine avec python-dotenv, puis exécution de scripts/live_openai_smoke.py avec RUN_LIVE_OPENAI_SMOKE=1 : Live Responses structured-output smoke passed. Un appel, gpt-4.1-mini, 154 tokens (140 entrée / 14 sortie), enregistré success. Après redémarrage local : /api/v2/integrations confirme activation et clé chargée ; .env toujours ignoré par Git. Aucun test web_search ni fournisseur Reels dans cette opération.
+
+
+## Ask OpenAI, 26 septembre 2026
+
+217 tests Python + 5 sous-tests passent en 70,28 s, réseau interdit via scripts/test_offline.py et dossier temporaire autorisé. Tests ajoutés : critères transmis, cache distinct par budget, rejet des contraintes invalides. Quatre suites Node passent après adaptation du double DOM du formulaire ; tests Ask : consentement, budget zéro, critères, erreurs visibles et protection au changement de profil. verify_frontend_api.py PASS.
+
+Nouveau scripts/test_ask_browser.cjs : Edge 375x812, API/SQLite locale isolée et réponse fournisseur simulée, consentement avant tout appel, résultat sourcé visible, limites de budget, ancien message d'erreur retiré, zéro débordement horizontal, retour au programme local PASS. Capture .runtime/ask-web-mobile.png. Le test réel séparé WebDiscovery, autorisé explicitement avec RUN_LIVE_OPENAI_SMOKE=1, a renvoyé completed et une source ; un seul appel web, enregistré dans le quota de la base principale. Le cache de ce profil de validation synthétique a été retiré, le compteur conservé. Aucun appel fournisseur dans la suite automatisée.
+
+
+## Agendas et proactivité : vérifications du 26 septembre 2026
+
+Commande finale : `.\.venv\Scripts\python.exe scripts/test_offline.py --tb=short --basetemp C:\Users\maxim\Documents\Codex\calendar-full-03 --junitxml=.runtime/calendar-tests.xml`.
+Résultat exécuté : **236 passed, 5 subtests passed in 97.84s**. Log `.runtime/calendar-tests.txt`, XML `.runtime/calendar-tests.xml`. Aucun accès réseau fournisseur autorisé par ce lanceur.
+
+19 tests calendrier dédiés couvrent chiffrement/absence de secrets dans les réponses, identité par membre, configuration absente, state/PKCE/cookie/rejeu/expiration, échange OAuth Google et MSAL simulé, refresh MSAL simulé, journaux callback, freebusy Google, pagination Outlook/free/annulé et URI refusée, croisements, cache périmé/panne sans disponibilité inventée, deux confirmations par révision, reprises après échec partiel, mise à jour/annulation, effacement, humeurs privées/anciennes, score, consentement OpenAI/cache de limitation, déclaration conversationnelle, délai depuis la date effective, scheduler start/stop et notifications/lecture isolée/doublons. Le test d'architecture des imports a détecté un cycle, corrigé en extrayant les utilitaires communs ; sa version finale passe. Un double arrêt de scheduler découvert en test a été rendu idempotent.
+
+Suites Node exécutées : `test_ai.mjs`, `test_ui.mjs`, `test_experiences.mjs`, `test_share.mjs`, `test_calendar.mjs` : PASS. Syntaxe app.mjs et calendar.mjs : PASS. `python scripts/verify_frontend_api.py` : PASS. `python -m pip check` : aucune dépendance incohérente. `git diff --check` : PASS (avertissements LF/CRLF uniquement).
+
+Navigateur : `node scripts/test_calendar_browser.cjs`, serveur isolé 8316 via `backend.tests.serve_share_fixture`, base `.runtime/calendar-browser-test.sqlite3`, OpenAI et scheduler désactivés pour ce test. Edge/Playwright, 375×812 : configuration OAuth absente visible, accords des deux profils, disponibilités manuelles, déclenchement de démo, notification persistée, ouverture du programme, garder/remplacer, acceptation et aperçu calendrier. PASS, aucun appel externe ; captures `.runtime/calendar-settings-mobile.png` et `.runtime/calendar-mobile.png` inspectées. Serveur de test arrêté après contrôle.
+
+Validation réelle limitée au serveur local 8000 redémarré : `/api/v2/integrations` annonce `calendar.mode=manual_or_connected`, `providers.google=false`, `providers.outlook=false`, `scheduler_running=true`. La planification interne est active après activation dans le `.env` privé ; la cadence accélérée et l'analyse OpenAI d'humeur restent désactivées. Pas encore de passage quotidien observé (prochain passage à 09:00), mais cycle start/stop et calcul manuel validés. Pas de compte OAuth réel ni d'événement externe créé, modifié ou supprimé ; ces validations attendent les clients OAuth et comptes de test. CalDAV Apple absent.
+
+
+## Deck E : vérifications terminées le 27 septembre 2026
+
+Commande finale : `.\.venv\Scripts\python.exe scripts/test_offline.py --tb=short --basetemp C:\Users\maxim\Documents\Codex\deck-full-02 --junitxml=.runtime/deck-tests.xml` (sortie aussi enregistrée dans `.runtime/deck-tests.txt`). Résultat exécuté : **247 passed, 5 subtests passed in 112.00s**. Le lanceur impose le scoring local et interdit le réseau fournisseur. Avant les derniers garde-fous, une première régression avait passé 243 tests et 5 sous-tests ; seul le dernier résultat décrit la livraison.
+
+Onze tests dédiés couvrent les six poids, NaN refusé, taille exacte, contraintes de temps/budget/trajet, diversité et absence de doublons, authentification, couple étranger, consentement cloud, trois plans persistés, absence de contexte privé dans la réponse, remplacement/activité verrouillée, conservation des autres étapes/cartes, composition croisée et ordre recalculé, pool d'un autre profil refusé, IDs inconnus/dupliqués, changement de tarif/refus, expiration du pool d'origine, ordre « dîner puis balade », cuisine japonaise et pénurie explicite. Méthode Pipelex : structure TOML et adaptateur testé avec doubles (réussite, indisponibilité, sortie non conforme). Aucun runtime Pipelex réel exécuté.
+
+TypeScript : compilation stricte `node frontend/node_modules/typescript/bin/tsc -p frontend/tsconfig.json` et contrôle `--noEmit` PASS. `python scripts/generate_date_contract.py --check` PASS. Les six suites Node `test_ai`, `test_ui`, `test_experiences`, `test_share`, `test_calendar`, `test_date_deck` passent ; `test_ui` et `test_date_deck` relancées après le branchement de l'actualisation depuis le dialogue historique. `node --check frontend/app/app.mjs`, `python scripts/verify_frontend_api.py` et `python -m pip check` PASS.
+
+Navigateur Edge/Playwright, viewport 375×812, serveur isolé 8320, base `.runtime/deck-browser.sqlite3`, appels externes bloqués :
+- `scripts/test_date_deck_browser.cjs` PASS : vraies routes locales search/replace/compose/accept, trois cartes, flèches clavier, événements de swipe, intérêt sans acceptation, remplacement en restant sur la même carte, sélection croisée, confirmation dans le dialogue existant, montage séparé du composant avec mocks, aucun débordement horizontal ni erreur JavaScript.
+- `scripts/test_ask_browser.cjs` PASS : consentement, critères, résultats web et sources avec fournisseur simulé, retour au deck local.
+- `scripts/test_calendar_browser.cjs` PASS : configuration absente, deux consentements, déclenchement manuel, notification persistante, ouvrir/garder/remplacer/accepter et panneau calendrier existants.
+
+Captures `.runtime/deck-mobile.png` et `.runtime/deck-mock-compare-mobile.png` inspectées. Une heure coupée sur deux lignes a été corrigée. Le geste est testé par événements de pointeur dans le navigateur, pas sur téléphone Android physique. Toutes les activités de ces tests sont synthétiques, pas des offres réelles.
+
+Serveur utilisateur 8000 redémarré via le lanceur existant, après identification de son processus. Lecture de son OpenAPI : les trois nouvelles routes sont présentes. `/api/v2/integrations` annonce toujours `OpenAI_available=true` et `scheduler_running=true`. Aucun nouvel appel payant ni écriture calendrier externe effectué dans cette tranche. Aucun commit, push ou déploiement.
+
+## Cartes individuelles, nettoyage des choix de moteur (27 septembre 2026)
+
+| Contrôle exécuté | Résultat observé |
+| --- | --- |
+| Suite offline complète, après corrections finales du catalogue | 254 passed, 5 subtests passed, 120.93 s ; .runtime/activity-tests.txt et XML |
+| Sept suites Node : ai, ui, experiences, share, calendar, date_deck, activity_cards | PASS |
+| tsc strict (build et noEmit), contrat Python/TS --check | PASS |
+| verify_frontend_api.py et pip check | PASS |
+| test_activity_cards_browser.cjs, Edge 375x812 et 1440x1000 | PASS, API/SQLite réelles de test, données synthétiques |
+| Même navigateur : swipe pointeur, flèches, Entrée, garder/passer/retirer, deux vues | PASS ; garder/passer n'écrit pas de préférence |
+| Composition en échec puis nouvelle tentative, remplacement, acceptation | PASS ; autres étapes conservées |
+| Lot sans programme complet, composition de 4 activités, refus de profil étranger | PASS API |
+| Réponse de composition après changement de profil | PASS, aucun résultat affiché au nouveau profil |
+| Chevauchement / trajet / budget / durée | Avertissements locaux et refus serveur des programmes impossibles |
+| test_ask_browser.cjs, fournisseur simulé | PASS, pas de case moteur ; critères et citations conservés |
+| test_share_browser.cjs, worker/IndexedDB/FastAPI/FFmpeg | PASS ; autorisation fichier conservée, profils isolés |
+| Audit visuel et recherche de mentions fournisseur dans les écrans testés | PASS ; rapport UI_AUDIT.md |
+| git diff --check | PASS |
+
+Captures locales : .runtime/activity-mobile.png, .runtime/activity-desktop.png.
+Aucun test fournisseur payant ; aucune preuve de réservation, disponibilité réelle,
+menu de partage Android natif ou mise en production. Les tests navigateur utilisent
+.runtime/activity-ui-test.sqlite3, jamais la base de travail de l'équipe.
+
 ## Chandelier vocal — 2026-09-27
 
 - `node --check frontend/app/voice.mjs` : code 0.
@@ -326,6 +493,29 @@ Ne pas additionner les nombres de tests annoncés.
 
 Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
 12 skipped, 5 subtests passed in 21.18s**, suites Node et parcours API PASS.
+## Fusion Noé / cartes / Gradium, 27 septembre 2026
+
+- `.venv\Scripts\python.exe scripts/test_offline.py --tb=short --basetemp .runtime/merge-noe-full` : **313 passed in 278.13s**, sortie `.runtime/merge-noe-full.txt`.
+- Huit suites `frontend/tests/test_*.mjs` exécutées avec le Node fourni par Codex :
+  activity_cards, ai, calendar, date_deck, experiences, share, ui, voice : PASS.
+- `node --check frontend/app/app.mjs`, `node --check frontend/app/voice.mjs` : PASS.
+- `node frontend/node_modules/typescript/bin/tsc -p frontend/tsconfig.json --noEmit` : PASS.
+- `.venv\Scripts\python.exe scripts/generate_date_contract.py --check` : PASS.
+- `.venv\Scripts\python.exe scripts/verify_frontend_api.py` : PASS.
+- `.venv\Scripts\python.exe -m pip check` : aucune incohérence.
+- Test navigateur de fusion dans le workspace Codex :
+  `.runtime/run_merge_browser.py` et `.runtime/test_merge_browser.cjs` : PASS.
+  Edge à 375 px, API/SQLite de test sur 8332, fournisseur web simulé, Gradium
+  désactivé ; chandelier, dialogue texte, cartes sourcées, sélection, fermeture,
+  formulaire Discover, journal et présence OAuth/iCal. Sortie projet
+  `.runtime/merge-noe-browser.txt`, capture `.runtime/merge-noe-mobile.png` inspectée.
+
+Les essais initiaux ont révélé un champ d'état calendrier manquant et deux
+incompatibilités avec l'ancien parcours catalogue : corrigés avant la suite
+complète. Le test navigateur a été ajusté aux sélecteurs réels du journal et de
+la navigation avant son passage final. Aucun test live Gradium ni OAuth, aucun
+appel payant OpenAI ; ces validations ne prouvent pas la connexion d'un compte.
+
 
 ## Correction du cache de l’interface
 
@@ -468,3 +658,95 @@ Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
 - `bash scripts/check.sh` → code 0, **307 passed, 12 skipped, 5 subtests passed in 30.27s** ; suites Node, contrats frontend/API, syntaxe et `git diff --check` PASS. Réseau interdit par le lanceur Python.
 - Régressions ajoutées : démarrage/réouverture sans profil fictif, création d’un couple sans faits ; `/dev/seed` absent même avec CHANDELLE_DEV=1 ; initialisation CLI sans profil ni effet sur une autre base ; recommandation japonaise permise sans refus, refus d’un autre couple sans effet, refus explicite du partenaire appliqué puis annulé par correction ou skip, résultat persistant après réouverture.
 - Aucune donnée utilisateur effacée, aucun test fournisseur live.
+## Fusion du correctif cache 1505aa3, 27 septembre 2026
+
+- `.venv\Scripts\python.exe scripts/test_offline.py backend/tests/test_pwa.py backend/tests/test_voice.py backend/tests/test_web_pipeline.py --tb=short --basetemp .runtime/merge-cache-tests` : **35 passed in 36.17s**, sortie `.runtime/merge-cache-tests.txt`.
+- Neuf suites `frontend/tests/test_*.mjs` : PASS, dont test_asset_cache.mjs :
+  activation immédiate, suppression des anciens caches v1/v2/v3, HTML/JS/CSS/API
+  hors cache du worker, icônes conservées.
+- `scripts/verify_frontend_api.py` : PASS.
+- Parcours Edge 375 px relancé via le harness du workspace
+  `.runtime/run_merge_browser.py` : PASS. Chandelier, dialogue clavier, cartes,
+  sélection, fermeture, Discover, journal, OAuth/iCal. Fournisseur simulé ; aucun
+  appel payant. Serveur temporaire 8332 arrêté après le test.
+- `git diff --check` : PASS. Les nouvelles vérifications sont ciblées sur le delta
+  du cache ; la suite complète précédente avait 313 tests passants.
+## Contrôle réel Gradium après redémarrage, 27 septembre 2026
+
+- GET local `/api/v2/integrations` : enabled/configured/available=true ; schéma
+  OpenAPI : `/api/v2/voice/transcribe` et `/api/v2/voice/speak` présents.
+- Smoke manuel `RUN_LIVE_GRADIUM_SMOKE=1`, même GradiumAdapter et `.env` serveur :
+  TTS puis STT réels réussis sur « Bonjour. Une balade à Paris. » (phrase fictive).
+  Audio 2,56 s / mono / 48 kHz ; transcription 28 caractères, Paris reconnu.
+  Deux TTS et un STT : première vérification locale bloquée par la longueur WAV
+  indéterminée du flux, puis en-tête finalisé en mémoire pour tester le STT.
+- Résumé sans clé dans `.runtime/gradium-live-smoke.json`. Aucun contenu personnel,
+  pas de nouvelle suite de régression (code inchangé), pas de test micro physique.
+
+## Validation des sources Excel, 27 septembre 2026
+
+Données réelles, sans appels réseau :
+- Lecture des sept fichiers avec openpyxl 3.1.5 du runtime ; 8 633 lignes source,
+  162 doublons, 8 471 fiches, aucune chaîne Unicode de remplacement.
+- Script import_activity_workbooks.py : export 482 676 octets ; import complet
+  dans la base de vérification puis base existante. Réimport unchanged=true.
+- FTS réel : japonais/café/dessert/italien retournent des fiches en environ
+  7 à 10 ms sur cette machine (échantillon, pas un benchmark).
+- Serveur local relancé, HTTP 200 et catalog imported_and_web, 8 471 fiches,
+  7 971 éligibles, Gradium toujours disponible. 42 faits personnels préservés.
+- Edge 375 px sur base isolée contenant le bundle réel, sans fournisseurs :
+  Discover japonais (50 cartes), Ask café, sources/gammes, garder, vue d'ensemble
+  et conservation de sélection, aucun débordement horizontal ni erreur JS.
+  Preuves .runtime/import-browser.txt et import-card-mobile.png. Serveur de
+  contrôle 8334 arrêté. Aucun appel OpenAI, Gradium ou source tierce pour l'import.
+
+Tests simulés et régressions :
+- test_imported_catalog.py couvre identité/provenance, prix inconnus, dates
+  ambiguës, films distincts des séances, FTS, reprise, mise à jour, rollback,
+  expiration, refus, API privée, panne web et shortlist, enrichissement web
+  sans double carte (domaine/slug modifié), composition et reset FTS.
+- Première suite ciblée : 1 échec (déduplication trop tôt, trace modifiée),
+  corrigé puis 27 passed.
+- Suite Python complète : 333 passed, 1 échec sur l'ordre historique des traces
+  quand le catalogue importé est vide, 212,34 s. Corrigé en conservant cet ordre
+  si aucun import pertinent. Contrôle ciblé final après toutes corrections :
+  `python scripts/test_offline.py backend/tests/test_imported_catalog.py
+  backend/tests/test_web_pipeline.py
+  backend/tests/test_api.py::test_complete_lifecycle_review_photo_memory_suggestion_and_reopen
+  --tb=short --basetemp .runtime/import-final-proof` : **30 passed in 40.54s**.
+  Ne pas présenter la première suite complète comme intégralement verte.
+- Toutes les suites frontend/tests/test_*.mjs exécutées : PASS ; ActivityCard et
+  test_ai relancés après les textes/imports : PASS. TypeScript strict et contrat
+  généré : PASS. verify_frontend_api.py : PASS.
+
+Limites : pas de vérification live des fiches externes ; les métadonnées de
+collecte sont inconnues. L'enrichissement web/composition a été testé avec
+fournisseur simulé ; les originaux n'ont pas été modifiés.
+
+## Validation Bar.xlsx, 27 septembre 2026
+
+Données réelles, sans fournisseur externe :
+- Huit Excel normalisés par scripts/import_activity_workbooks.py : 8 793 lignes
+  valides, 8 631 fiches uniques, 162 doublons, 267 lignes non pertinentes, quatre
+  conflits conservés inconnus. Bar.xlsx : 160/160 lignes utiles, aucun doublon.
+- Bundle 495 119 octets pour 1 758 572 octets d’Excel ; delta bars +12 443 octets.
+- SQLite utilisateur : 160 bars et 160 lignes FTS, rechargement unchanged=true.
+  Aucun ancien enregistrement mis à jour ; total 8 631, éligibles 8 131.
+- Edge 375 px, bundle réel et profils synthétiques dans une base de test séparée :
+  Discover « bar terrasse » affiche 50 cartes MisterGoodBeer, aucun tag « Pas de
+  terrasse », prix par pinte distinct du budget inconnu. Garder puis vue d’ensemble
+  conservent la sélection. Ask « bar karaoké » rend des cartes de la même chaîne.
+  Aucun appel fournisseur, débordement horizontal ou erreur JS. Preuves locales :
+  .runtime/bar-browser.txt, bar-card-mobile.png, bar-mobile.png. Serveur test arrêté.
+
+Tests de code avec données synthétiques :
+- `python scripts/test_offline.py backend/tests/test_imported_catalog.py
+  backend/tests/test_web_pipeline.py --tb=short --basetemp .runtime/bar-tests`
+  : 32 passed in 34.18s. Inclut les prix/unités, adresse IDF, validation du domaine,
+  déduplication, recherche terrasse et projection API sans fausse disponibilité.
+- Génération scripts/generate_date_contract.py, compilation TypeScript stricte : PASS.
+- `node frontend/tests/test_activity_cards.mjs` : PASS, dont échappement des
+  conditions et absence de prix par personne déduit d’une pinte.
+
+Limites : tarifs et offres proviennent du fichier fourni, pas d’une consultation
+actuelle de MisterGoodBeer. Aucun appel payant pour ces validations.

@@ -4,8 +4,8 @@
 > Le frontend utilise une session OpenAI optionnelle. Discover conserve le catalogue.
 
 
-Implémenté dans le workspace `chandelle-codex-E`. Les autres clones locaux ne
-reçoivent pas automatiquement ces modifications non commitées.
+Le dialogue vocal est intégré au même backend que la mémoire et les cartes.
+Chaque machine doit configurer ses propres accès Gradium côté serveur.
 
 ## Lancer
 
@@ -106,3 +106,18 @@ Pas de transcript visible ni de lecteur audio ; clavier et dernière réponse
 accessibles dans un volet fermé. Le bouton Terminer ferme micro/lecture et invalide
 les requêtes tardives. Animations désactivées si réduction des mouvements demandée.
 L’arrêt au silence n’est pas automatique : toucher la chandelle termine la prise.
+
+## Raccordement Windows et recherche web, 27 septembre 2026
+
+Le lanceur `powershell -ExecutionPolicy Bypass -File scripts/run_ai.ps1` charge
+désormais aussi les paramètres `GRADIUM_*` du `.env` privé à la racine.
+Renseigner `GRADIUM_API_KEY`, `GRADIUM_VOICE_ID`, puis `GRADIUM_ENABLED=1` pour
+activer la voix. Les modèles STT/TTS sont facultatifs. Ne pas transmettre les clés
+dans le chat ou dans Git. Le fichier `backend/integrations/.env.example` contient
+uniquement les noms et des valeurs vides ou désactivées.
+
+Le dialogue Discover utilise le même service de recherche web que les formulaires
+Ask/Discover. Les résultats sont des cartes individuelles, même quand des champs
+manquent pour composer un programme. Le catalogue fictif n'est pas réintroduit.
+Le clavier fonctionne sans Gradium ; un statut configuré ne prouve pas qu'un appel
+fournisseur a réussi. Les tests du connecteur simulent le fournisseur.

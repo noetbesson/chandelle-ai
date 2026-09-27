@@ -1,0 +1,995 @@
+{
+  "$defs": {
+    "ActivityChoice": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "End"
+        },
+        "price_per_person": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Price Per Person"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Location"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "address": {
+          "title": "Address",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "why": {
+          "title": "Why",
+          "type": "string"
+        },
+        "demo": {
+          "title": "Demo",
+          "type": "boolean"
+        },
+        "image_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Url"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rating"
+        },
+        "price_tier": {
+          "anyOf": [
+            {
+              "enum": [
+                "budget",
+                "moderate",
+                "upscale"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Tier"
+        },
+        "pint_price_from_eur": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pint Price From Eur"
+        },
+        "offer_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offer Note"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "City"
+        },
+        "source_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Name"
+        },
+        "source_kind": {
+          "default": "web",
+          "enum": [
+            "import",
+            "web"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "imported_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Imported At"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        },
+        "kind": {
+          "default": "place",
+          "title": "Kind",
+          "type": "string"
+        },
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked At"
+        },
+        "schedule_status": {
+          "default": "unknown",
+          "title": "Schedule Status",
+          "type": "string"
+        },
+        "availability": {
+          "default": "unknown",
+          "title": "Availability",
+          "type": "string"
+        },
+        "price_unit": {
+          "default": "unknown",
+          "title": "Price Unit",
+          "type": "string"
+        },
+        "composable": {
+          "default": true,
+          "title": "Composable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "start",
+        "end",
+        "price_per_person",
+        "location",
+        "address",
+        "tags",
+        "why",
+        "demo",
+        "source"
+      ],
+      "title": "ActivityChoice",
+      "type": "object"
+    },
+    "ActivityReplacement": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_id_to_replace": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Activity Id To Replace",
+          "type": "string"
+        },
+        "new_constraints": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "New Constraints"
+        }
+      },
+      "required": [
+        "activity_id_to_replace"
+      ],
+      "title": "ActivityReplacement",
+      "type": "object"
+    },
+    "CompositionStats": {
+      "properties": {
+        "candidate_count": {
+          "default": 0,
+          "title": "Candidate Count",
+          "type": "integer"
+        },
+        "combos_generated": {
+          "default": 0,
+          "title": "Combos Generated",
+          "type": "integer"
+        },
+        "selected_activity_ids": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Selected Activity Ids",
+          "type": "array"
+        },
+        "rejected_count": {
+          "default": 0,
+          "title": "Rejected Count",
+          "type": "integer"
+        },
+        "scoring_backend": {
+          "default": "local_deterministic",
+          "title": "Scoring Backend",
+          "type": "string"
+        },
+        "scoring_fallback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scoring Fallback"
+        },
+        "diversity_strength": {
+          "default": 0.65,
+          "title": "Diversity Strength",
+          "type": "number"
+        }
+      },
+      "title": "CompositionStats",
+      "type": "object"
+    },
+    "DateComposition": {
+      "additionalProperties": false,
+      "properties": {
+        "selected_activity_ids": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Selected Activity Ids",
+          "type": "array"
+        },
+        "search_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Search Id"
+        }
+      },
+      "required": [
+        "selected_activity_ids"
+      ],
+      "title": "DateComposition",
+      "type": "object"
+    },
+    "DateSearch": {
+      "additionalProperties": false,
+      "properties": {
+        "constraints": {
+          "$ref": "#/$defs/SearchConstraints"
+        },
+        "couple_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Couple Id"
+        },
+        "cloud_consent": {
+          "default": false,
+          "title": "Cloud Consent",
+          "type": "boolean"
+        }
+      },
+      "title": "DateSearch",
+      "type": "object"
+    },
+    "DateSearchResponse": {
+      "properties": {
+        "status": {
+          "default": "completed",
+          "title": "Status",
+          "type": "string"
+        },
+        "empty_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Empty Reason"
+        },
+        "message": {
+          "default": "",
+          "title": "Message",
+          "type": "string"
+        },
+        "trace": {
+          "items": {
+            "$ref": "#/$defs/SearchTrace"
+          },
+          "title": "Trace",
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "searched_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Searched At"
+        },
+        "cached": {
+          "default": false,
+          "title": "Cached",
+          "type": "boolean"
+        },
+        "activities": {
+          "items": {
+            "$ref": "#/$defs/ActivityChoice"
+          },
+          "maxItems": 50,
+          "title": "Activities",
+          "type": "array"
+        },
+        "budget_cap": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Budget Cap"
+        },
+        "max_total_duration_minutes": {
+          "default": 360,
+          "title": "Max Total Duration Minutes",
+          "type": "integer"
+        },
+        "max_travel_time_minutes": {
+          "default": 30,
+          "title": "Max Travel Time Minutes",
+          "type": "integer"
+        },
+        "requested_steps": {
+          "default": 2,
+          "title": "Requested Steps",
+          "type": "integer"
+        },
+        "search_id": {
+          "title": "Search Id",
+          "type": "string"
+        },
+        "proposals": {
+          "items": {
+            "$ref": "#/$defs/DeckPlan"
+          },
+          "maxItems": 3,
+          "title": "Proposals",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "composition": {
+          "$ref": "#/$defs/CompositionStats"
+        }
+      },
+      "required": [
+        "search_id",
+        "proposals",
+        "warnings",
+        "composition"
+      ],
+      "title": "DateSearchResponse",
+      "type": "object"
+    },
+    "DeckActivity": {
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        },
+        "price_per_person": {
+          "minimum": 0,
+          "title": "Price Per Person",
+          "type": "number"
+        },
+        "location": {
+          "$ref": "#/$defs/Location"
+        },
+        "match_score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Match Score",
+          "type": "number"
+        },
+        "why": {
+          "title": "Why",
+          "type": "string"
+        },
+        "booking_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Booking Url"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "demo": {
+          "title": "Demo",
+          "type": "boolean"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "address": {
+          "title": "Address",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "name",
+        "start",
+        "end",
+        "price_per_person",
+        "location",
+        "match_score",
+        "why",
+        "title",
+        "category",
+        "source",
+        "demo",
+        "description",
+        "address"
+      ],
+      "title": "DeckActivity",
+      "type": "object"
+    },
+    "DeckPlan": {
+      "additionalProperties": true,
+      "properties": {
+        "date_plan_id": {
+          "title": "Date Plan Id",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "estimated_total_eur": {
+          "minimum": 0,
+          "title": "Estimated Total Eur",
+          "type": "number"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "activities": {
+          "items": {
+            "$ref": "#/$defs/DeckActivity"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Activities",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "proposed",
+            "accepted",
+            "completed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "diversity_label": {
+          "title": "Diversity Label",
+          "type": "string"
+        },
+        "duration_minutes": {
+          "title": "Duration Minutes",
+          "type": "integer"
+        },
+        "search_id": {
+          "title": "Search Id",
+          "type": "string"
+        },
+        "kept_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Kept Ids",
+          "type": "array"
+        },
+        "timeline": {
+          "items": {
+            "$ref": "#/$defs/TimelineEntry"
+          },
+          "title": "Timeline",
+          "type": "array"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "date_plan_id",
+        "start",
+        "end",
+        "estimated_total_eur",
+        "reason",
+        "activities",
+        "id",
+        "status",
+        "diversity_label",
+        "duration_minutes",
+        "search_id",
+        "kept_ids",
+        "timeline",
+        "source"
+      ],
+      "title": "DeckPlan",
+      "type": "object"
+    },
+    "Location": {
+      "properties": {
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Lat",
+          "type": "number"
+        },
+        "lng": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Lng",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lat",
+        "lng"
+      ],
+      "title": "Location",
+      "type": "object"
+    },
+    "SearchConstraints": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "default": "A date for us",
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "budget": {
+          "anyOf": [
+            {
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Budget"
+        },
+        "categories": {
+          "items": {
+            "enum": [
+              "food",
+              "culture",
+              "concerts",
+              "cinema",
+              "outdoors",
+              "sport",
+              "workshops",
+              "nightlife",
+              "home",
+              "travel"
+            ],
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Categories",
+          "type": "array"
+        },
+        "required_activity_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required Activity Id"
+        },
+        "required_activity_ids": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 3,
+          "title": "Required Activity Ids",
+          "type": "array"
+        },
+        "radius_km": {
+          "anyOf": [
+            {
+              "maximum": 200,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Radius Km"
+        },
+        "activity_count": {
+          "default": 2,
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Activity Count",
+          "type": "integer"
+        },
+        "max_plans": {
+          "default": 3,
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Max Plans",
+          "type": "integer"
+        },
+        "mode": {
+          "default": "auto",
+          "enum": [
+            "offline",
+            "openai",
+            "auto"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "use_shared_interests": {
+          "default": false,
+          "title": "Use Shared Interests",
+          "type": "boolean"
+        },
+        "time_window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeWindow"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_total_duration_minutes": {
+          "default": 360,
+          "maximum": 1440,
+          "minimum": 15,
+          "title": "Max Total Duration Minutes",
+          "type": "integer"
+        },
+        "max_travel_time_minutes": {
+          "default": 30,
+          "maximum": 180,
+          "minimum": 0,
+          "title": "Max Travel Time Minutes",
+          "type": "integer"
+        }
+      },
+      "title": "SearchConstraints",
+      "type": "object"
+    },
+    "SearchTrace": {
+      "additionalProperties": true,
+      "properties": {
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage"
+      ],
+      "title": "SearchTrace",
+      "type": "object"
+    },
+    "TimeWindow": {
+      "properties": {
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "duration_minutes": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Minutes"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "TimeWindow",
+      "type": "object"
+    },
+    "TimelineEntry": {
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "enum": [
+            "travel",
+            "activity"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "minutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minutes"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "TimelineEntry",
+      "type": "object"
+    }
+  },
+  "description": "Used only to generate a single schema containing all browser request/response types.",
+  "properties": {
+    "search": {
+      "$ref": "#/$defs/DateSearch"
+    },
+    "response": {
+      "$ref": "#/$defs/DateSearchResponse"
+    },
+    "replace": {
+      "$ref": "#/$defs/ActivityReplacement"
+    },
+    "compose": {
+      "$ref": "#/$defs/DateComposition"
+    }
+  },
+  "required": [
+    "search",
+    "response",
+    "replace",
+    "compose"
+  ],
+  "title": "DeckContract",
+  "type": "object"
+}

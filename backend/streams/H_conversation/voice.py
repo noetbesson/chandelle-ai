@@ -35,7 +35,11 @@ def discovery_turn(body, recommend):
         return {'reply': str(exc) if hasattr(exc,'code') else 'Je ne trouve pas de programme compatible avec ces contraintes. Essayons une autre activité ou un autre budget.', 'plans': [], 'diagnostic': {'code':getattr(exc,'code','no_feasible_activities')}}
     plans = result.get('plans', [])
     if not plans:
-        return {'reply': 'Aucun programme compatible pour le moment. Essayons une autre envie.', 'plans': []}
+        if any(step.get('stage') == 'calendar_window' and step.get('after') == 0 for step in result.get('trace', [])):
+            return {**result, 'reply': 'Vos disponibilités ne permettent pas de composer un programme sur ce créneau. Vous pouvez parcourir les idées et ajuster vos disponibilités.'}
+        if result.get('activities'):
+            return {**result, 'reply': 'Voici des idées de sorties à parcourir. Certains prix ou horaires restent à confirmer avant de composer le programme.'}
+        return {**result, 'reply': result.get('message') or 'Aucun programme compatible pour le moment. Vérifiez vos disponibilités ou essayons une autre envie.'}
     plan = plans[0]
     titles = ' puis '.join(a.get('title') or a.get('name', 'une activité') for a in plan['activities'])
-    return {**result, 'reply': f"Je vous propose {titles}, pour {plan['total_couple_cost']:g} euros à deux. Voici la fiche avec le créneau et les détails. Ce sont des exemples du catalogue de démonstration."}
+    return {**result, 'reply': f"Je vous propose {titles}, pour un budget estimé de {plan['total_couple_cost']:g} euros à deux. Les sources et les informations à confirmer figurent sur les cartes."}

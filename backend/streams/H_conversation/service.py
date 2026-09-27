@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 from pydantic import BaseModel, Field
 from backend.db import now, encoded
-import hashlib
 import json
 from backend.streams.B_memory.service import Privacy
 
@@ -102,7 +101,7 @@ def durable_preferences(text):
 class Conversation(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
     privacy_scope: Privacy = 'PRIVATE'
-    mode: Literal['offline', 'openai'] = 'offline'
+    mode: Literal['offline', 'openai', 'auto'] = 'offline'
     conversation_id: str | None = Field(default=None, max_length=100)
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=100)
     horizon: Literal['durable', 'temporary'] = 'durable'
@@ -187,9 +186,17 @@ class ConversationService:
             facts = self.memory.learn(member['couple_id'], member['id'], candidates,
                                       body.privacy_scope, iid, body.horizon,
                                       auto_share=body.auto_share and 'privacy_scope' not in body.model_fields_set)
+            # Preserve the explicit mood signal used by G, with the author's visibility.
+            from backend.streams.G_proactive.mood_rules import explicit_mood
+            mood = explicit_mood(body.text) if body.learn else None
+            if mood:
+                facts.append(self.memory.ingest(member['couple_id'], 'PERSON', member['id'], member['id'],
+                    'experience', 'discussion:mood', {'text': 'Je suis ' + mood, 'signal_at': now(), 'horizon': 'temporary'},
+                    body.privacy_scope, 'conversation', confidence=.8, idempotency_key=iid))
             with self.db.connect() as c:
                 c.execute('INSERT INTO v2_memory_interactions VALUES(?,?,?,?,?,?,?,?)',
                     (iid, member['id'], sid, mid, body.idempotency_key, fingerprint,
                      encoded([f['id'] for f in facts]), adapter.last_mode))
         return {'conversation_id': sid, 'interaction_id': iid, 'facts': facts,
-                'mode': adapter.last_mode, 'replayed': False}
+                'mode': adapter.last_mode, 'fallback': adapter.last_fallback, 'replayed': False,
+                'reply': f"{len(facts)} information(s) retenue(s). Vous pouvez les corriger dans votre mémoire." if facts else "Message enregistré. Aucune préférence explicite à retenir."}

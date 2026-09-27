@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {calendarPanel,calendarPlanPanel,notificationsPanel,clickCalendar} from '../app/calendar.mjs';
+const requests=[];
+const api=async(path,options)=>{
+ requests.push([path,options]);
+ if(path==='/calendar/status')return {connected:false,providers:{google:false,outlook:false},window_policy:'Agenda principal'};
+ if(path==='/proactive/settings')return {enabled:false,both_enabled:false,scheduler:{running:false},demo_available:true};
+ if(path==='/notifications')return {items:[{id:'n',plan_id:'p',title:'<script>',message:'Texte',read:false}]};
+ if(path==='/calendar/plans/p')return {event:{title:'DÉMO',start:'2026-10-02T17:00Z',end:'2026-10-02T19:00Z'},demo:true,revision:'r',connected_calendars:1,approvals:1};
+ return {};
+};
+const panel=await calendarPanel({api});
+assert.match(panel,/non activée/);assert.match(panel,/Google Calendar/);assert.match(panel,/disabled/);assert.match(panel,/CalDAV reste à implémenter/);
+assert.equal(await calendarPlanPanel(api,{id:'p',status:'draft'}),'');
+assert.match(await calendarPlanPanel(api,{id:'p',status:'accepted'}),/1\/2 confirmations/);
+const feed=await notificationsPanel(api);assert.match(feed,/&lt;script&gt;/);assert.doesNotMatch(feed,/<script>/);
+let plan;const ctx={api,identity:()=>1,cid:()=>2,notify(){},navigate:async()=>{},showPlan:async id=>{plan=id}};
+assert.equal(await clickCalendar({dataset:{action:'calendar-export'}},ctx),false);
+await clickCalendar({dataset:{action:'calendar-confirm',id:'p',revision:'exact'}},ctx);
+assert.equal(plan,'p');assert.deepEqual(requests.at(-1)[1].body,{revision:'exact'});
+await clickCalendar({dataset:{action:'proactive-consent',enabled:'false'}},ctx);
+assert.deepEqual(requests.at(-1)[1].body,{enabled:false});
+console.log('Calendar UI PASS: disabled configuration, honest scheduler, confirmation revision, escaping, consent and existing ICS action.');

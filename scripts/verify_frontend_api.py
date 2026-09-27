@@ -5,11 +5,15 @@ from tempfile import TemporaryDirectory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 from backend.api.app import create_app
+from backend.tests.web_provider import install
+from pytest import MonkeyPatch
 
 
 def main():
-    with TemporaryDirectory() as directory:
-        client = TestClient(create_app(Path(directory) / 'ui.sqlite'))
+    with TemporaryDirectory(dir=Path(__file__).resolve().parents[1]/'.runtime') as directory, MonkeyPatch.context() as patch:
+        app=create_app(Path(directory)/'ui.sqlite')
+        install(app,patch)
+        client=TestClient(app)
         assert client.get('/app').status_code == 200
         assert client.get('/v2-static/app.mjs').status_code == 200
         font = client.get('/v2-static/public/fonts/Conjiote%20Personal%20Use.otf')
@@ -39,11 +43,11 @@ def main():
         for route in routes:
             result = client.get('/api/v2' + route, headers=headers)
             assert result.status_code == 200, (route, result.text)
-        result = client.post('/api/v2/recommendations/query', headers=headers, json={'text': 'A thoughtful relaxed date', 'categories': [], 'activity_count': 2, 'max_plans': 3, 'mode': 'offline', 'radius_km': 15})
+        result = client.post('/api/v2/recommendations/query', headers=headers, json={'time_window': {'start':'2026-10-02T18:00:00+02:00','end':'2026-10-03T00:00:00+02:00'}, 'text': 'A thoughtful relaxed date', 'categories': [], 'activity_count': 2, 'max_plans': 3, 'mode': 'auto', 'radius_km': 15})
         assert result.status_code == 200, result.text
         plan = result.json()['plans'][0]
         selected = plan['activities'][0]['id']
-        selected_result = client.post('/api/v2/recommendations/query', headers=headers, json={'text': 'Include our selected activity', 'required_activity_id': selected, 'activity_count': 2, 'mode': 'offline'})
+        selected_result = client.post('/api/v2/recommendations/query', headers=headers, json={'time_window': {'start':'2026-10-02T18:00:00+02:00','end':'2026-10-03T00:00:00+02:00'}, 'text': 'Include our selected activity', 'required_activity_id': selected, 'activity_count': 2, 'mode': 'auto'})
         assert selected_result.status_code == 200, selected_result.text
         assert all(selected in [a['id'] for a in p['activities']] for p in selected_result.json()['plans'])
         assert client.patch('/api/v2/date-plans/' + plan['id'], headers=headers, json={'status': 'accepted'}).status_code == 200
@@ -52,7 +56,7 @@ def main():
         fact = client.get(f"/api/v2/memories?scope=PERSON&entity_id={member['id']}", headers=headers).json()['items'][0]
         result = client.patch('/api/v2/memories/' + fact['id'], headers=headers, json={'category': fact['category'], 'value': fact['value'], 'privacy_scope': fact['privacy_scope']})
         assert result.status_code == 200, result.text
-        print('Frontend payload integration: static assets, 14 interview answers, 2 completions, 9 screen endpoints, query, selected activity inclusion, accept, category review, memory edit PASS')
+        print('Frontend payload integration: static assets, 14 interview answers, 2 completions, 9 screen endpoints, simulated web query, selected activity inclusion, accept, category review, memory edit PASS')
 
 
 if __name__ == '__main__':

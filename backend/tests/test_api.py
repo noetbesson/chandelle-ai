@@ -24,8 +24,11 @@ def offline_only(monkeypatch):
 
 
 @pytest.fixture
-def client(tmp_path):
-    with TestClient(create_app(tmp_path/'v2.sqlite3')) as client:
+def client(tmp_path,monkeypatch):
+    from backend.tests.web_provider import install
+    app=create_app(tmp_path/'v2.sqlite3')
+    install(app,monkeypatch)
+    with TestClient(app) as client:
         yield client
 
 
@@ -70,17 +73,11 @@ def query(client,member,**extra):
     return response.json()
 
 
-def test_real_discovery_cache_is_visible_without_entering_unverified_plans(client):
-    _, member, _ = ready(client)
-    response = client.get(PREFIX + '/activities/real', headers=headers(member))
-    assert response.status_code == 200
-    activities = response.json()['items']
-    assert len(activities) == 4
-    assert all(item['source'] == 'openai_web' and item['website'].startswith('https://') for item in activities)
-    assert all(item['match_score'] is None and item['why'] is None for item in activities)
-    ids = {item['id'] for item in activities}
-    plans = query(client, member)['plans']
-    assert all(not ids.intersection(activity['id'] for activity in plan['activities']) for plan in plans)
+def test_real_discovery_requires_explicit_web_search(client):
+    _,member,_=ready(client)
+    assert client.get(PREFIX+'/activities/real',headers=headers(member)).json()['items']==[]
+    result=query(client,member)
+    assert result['activities'] and all(not a['demo'] for a in result['activities'])
 
 
 def test_first_run_resume_idempotency_private_handoff_and_unlock(client):
@@ -125,7 +122,12 @@ def test_complete_lifecycle_review_photo_memory_suggestion_and_reopen(client,tmp
     suggestion=client.post(PREFIX+'/suggestions/check',headers=headers(a)).json()
     assert suggestion['triggered'] is True
     run=query(client,a)
-    assert [stage['stage'] for stage in run['trace']]==['parse','memories','candidates','plan']
+    stages=[stage['stage'] for stage in run['trace']]
+    assert stages[:5]==['request','parse','calendar_window','web_search','schema_and_citations']
+    assert {'region_idf','budget','availability','time_window','composition'} <= set(stages)
+    for stage in run['trace']:
+        if 'removed' in stage:
+            assert stage['before'] >= stage['after'] >= 0
     assert 'PRIVATE_ONBOARDING_SENTINEL' not in json.dumps(run)
     plan=run['plans'][0];pid=plan['id']
     assert 1<=len(plan['activities'])<=2
@@ -284,7 +286,9 @@ def test_private_conversation_and_date_memory_are_owner_scoped(client):
 
 def test_activity_feedback_neutral_clears_previous_rejection(client):
     _,a,_=ready(client)
-    path=PREFIX+'/activities/demo_culture_3/state'
+    result=query(client,a,categories=['culture'],activity_count=1)
+    aid=result['activities'][0]['id']
+    path=PREFIX+'/activities/'+aid+'/state'
     assert client.post(path,headers=headers(a),json={'state':'disliked'}).status_code==200
     assert client.post(path,headers=headers(a),json={'state':'liked'}).status_code==200
     liked=client.get(f'{PREFIX}/profiles/PERSON/{a["id"]}',headers=headers(a)).json()
@@ -343,14 +347,14 @@ def seeded(tmp_path,monkeypatch):
     return client,{'X-Member-Token':couple['members'][0]['token']},couple
 
 
-def test_required_catalog_activity_and_activity_cap(tmp_path,monkeypatch):
-    client,headers,_=seeded(tmp_path,monkeypatch)
-    body={'text':'A date','activity_count':1,'required_activity_id':'demo_culture_3'}
-    response=client.post('/api/v2/recommendations/query',headers=headers,json=body)
-    assert response.status_code==200,response.text
-    assert all([a['id'] for a in p['activities']]==['demo_culture_3'] for p in response.json()['plans'])
-    body['required_activity_id']='invented-unknown-id'
-    assert client.post('/api/v2/recommendations/query',headers=headers,json=body).status_code==422
+def test_required_web_activity_and_activity_cap(client):
+    _,a,_=ready(client)
+    initial=query(client,a,activity_count=1)
+    aid=initial['activities'][0]['id']
+    result=query(client,a,activity_count=1,required_activity_id=aid)
+    assert result['plans'] and all(p['activities'][0]['id']==aid for p in result['plans'])
+    result=query(client,a,required_activity_id='invented-unknown-id')
+    assert result['plans']==[] and result['warnings']
 
 
 def test_schema_reopen_in_independent_process_preserves_legacy(tmp_path):

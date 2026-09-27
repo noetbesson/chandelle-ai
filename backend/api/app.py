@@ -1,4 +1,4 @@
-"""Local HTTP composition for the offline demo."""
+"""Single local HTTP application, authenticated web discovery and memory."""
 
 from pathlib import Path
 import os
@@ -19,8 +19,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     memory = MemoryService(SQLiteMemoryRepository(db_path) if db_path is not None
                            else SQLiteMemoryRepository())
     service = ConversationService(DatePipeline(memory, DiscoveryService(LocalActivityRepository())))
-    proactive = ProactiveService(service.pipeline)
-    app = FastAPI(title="Chandelle Offline Demo", version="0.1.0")
+    app = FastAPI(title="Chandelle", version="0.1.0")
 
     @app.middleware('http')
     async def fresh_frontend(request, call_next):
@@ -57,10 +56,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/v1/date/request", response_model=PlanResult)
     def request_date(request: DateRequest) -> PlanResult:
-        try:
-            return service.request_date(request)
-        except PlanningFailure as exc:
-            raise HTTPException(status_code=422, detail={"run_id": exc.run_id, "error": str(exc)}) from exc
+        raise HTTPException(410,"Utilisez la recherche authentifiée /api/v2/dates/search.")
 
     @app.post("/v1/date/feedback", response_model=CoupleProfile)
     def feedback(request: FeedbackRequest) -> CoupleProfile:
@@ -86,10 +82,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
 
     @app.post("/v1/proactive/check", response_model=OpportunityDecision)
     def proactive_check(request: ProactiveCheck) -> OpportunityDecision:
-        try:
-            return proactive.check(request)
-        except PlanningFailure as exc:
-            raise HTTPException(status_code=422, detail={"run_id": exc.run_id, "error": str(exc)}) from exc
+        raise HTTPException(410,"Utilisez la recherche authentifiée /api/v2/dates/search.")
 
     from backend.api.routes import install_routes
     from fastapi.exceptions import RequestValidationError
@@ -97,6 +90,12 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     from starlette.exceptions import HTTPException as StarletteHTTPException
     v2_path = Path(db_path) if db_path is not None else Path(__file__).resolve().parents[2] / '.runtime' / 'chandelle_v2.sqlite3'
     install_routes(app, v2_path)
+    if db_path is None:
+        # Import the portable release once per digest into the same application database.
+        # Explicit temporary databases in tests/tools remain empty unless imported explicitly.
+        from backend.streams.C_discovery.local_catalog import ImportedCatalog, BUNDLE
+        if BUNDLE.is_file():
+            ImportedCatalog(app.state.v2['db']).import_bundle()
     from backend.api.pwa import install_pwa
     install_pwa(app)
     v2_static = Path(__file__).resolve().parents[2] / 'frontend' / 'app'

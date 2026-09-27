@@ -9,7 +9,6 @@ from pydantic import BaseModel
 
 from backend.streams.E_orchestrator.models import PlanRequest, PlansResponse, ReplaceRequest
 from backend.streams.E_orchestrator.planner import NoFeasiblePlan, generate, replace
-from backend.streams.E_orchestrator.repository import load_candidates
 
 
 class RunStatus(BaseModel):
@@ -36,7 +35,7 @@ def _execute(request: PlanRequest | ReplaceRequest, replacement: bool) -> PlansR
     _save(run)
     try:
         if request.candidate_activities is None:
-            request = request.model_copy(update={"candidate_activities": load_candidates()})
+            raise ValueError("Supply explicit candidates, or use /api/v2/dates/search for web discovery.")
         plans, rejected = replace(request) if replacement else generate(request)
     except (ValueError, OSError) as exc:
         run.status = "failed"

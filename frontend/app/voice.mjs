@@ -8,6 +8,7 @@ export function stopVoice(){
   const closing=current;
   if(closing.sessionId&&ctx.identity()===closing.identity)ctx.api('/ask/chat/'+encodeURIComponent(closing.sessionId),{method:'DELETE'}).catch(()=>{});
   current.closed=true;stopMeter(current);current.soundContext?.close().catch(()=>{});clearTimeout(current.timer);current.abort.abort();
+  current.closed=true;current.deck?.destroy();stopMeter(current);current.soundContext?.close().catch(()=>{});clearTimeout(current.timer);current.abort.abort();
   current.recorder?.state==='recording'&&current.recorder.stop();
   current.stream?.getTracks().forEach(t=>t.stop());
   current.audio?.pause();if(current.url)URL.revokeObjectURL(current.url);
@@ -138,6 +139,10 @@ async function send(s,text,recommend=false){
     document.querySelector('#voice-suggestions').innerHTML=suggestionCards(result.suggestions||[]);
     document.querySelector('#voice-web-results').innerHTML=result.web?renderWebResult(result.web):'';
     document.querySelector('#voice-plans').innerHTML=(result.plans||[]).map(ctx.planCard).join('');
+    s.deck?.destroy();
+    const target=document.querySelector('#voice-plans');
+    if(ctx.renderSearch&&result.run_id)s.deck=ctx.renderSearch(target,result);
+    else target.innerHTML=(result.plans||[]).map(ctx.planCard).join('');
     await speak(s,result.reply);
   }catch(e){if(live(s))status(s,e.message);}finally{if(live(s)){s.busy=false;phase(s,s.phase,document.querySelector('#voice-status').textContent);}}
 }

@@ -24,10 +24,13 @@ def facts(client,member):
     return client.get(PREFIX+'/inspirations',headers=headers(member)).json()['items']
 
 def scores(client,cid):
-    return client.app.state.v2['catalog'].discover(cid,{'start':'2026-09-26T18:00:00','end':'2026-09-26T23:00:00'},limit=100)
+    with client.app.state.v2['db'].connect() as c:ids={r[0] for r in c.execute('SELECT id FROM v2_activities')}
+    return client.app.state.v2['catalog'].discover(cid,{'start':'2026-09-26T18:00:00+02:00','end':'2026-09-26T23:00:00+02:00'},limit=100,candidate_ids=ids)
 
 def test_real_video_private_confirmation_dedup_and_erasure(client,video):
     couple,a,b=ready(client);cid=couple['couple_id']
+    from backend.tests.test_api import query
+    query(client,a)
     before=scores(client,cid)
     response=upload(client,a,video,signal_at='2020-01-01T12:00:00Z')
     assert response.status_code==200,response.text
@@ -129,3 +132,14 @@ def test_manually_edited_memory_is_not_overwritten_on_duplicate(client,video):
     duplicate=upload(client,a,video)
     assert duplicate.status_code==409 and duplicate.json()['code']=='EXISTING_EDITED'
     assert facts(client,a)[0]['value']==corrected
+
+
+def test_standard_upload_retains_file_permission_and_server_gate(client,video):
+    _,a,_=ready(client)
+    denied=upload(client,a,video,processing='standard',consent='false')
+    assert denied.status_code==422
+    assert upload(client,a,video,processing='unknown').status_code==422
+    response=upload(client,a,video,processing='standard')
+    assert response.status_code==200,response.text
+    assert response.json()['raw_transcript']==''  # server live disabled; no audio invented
+    assert facts(client,a)[0]['privacy_scope']=='PRIVATE'

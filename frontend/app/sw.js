@@ -1,5 +1,5 @@
 import {draftFromForm,saveDraft,MAX_VIDEO} from '/v2-static/share-store.mjs';
-const CACHE='chandelle-public-v2';
+const CACHE='chandelle-public-v4';
 // Only icons are immutable enough to cache; UI code/styles always use the server.
 const ASSETS=['/v2-static/icons/chandelle-192.png','/v2-static/icons/chandelle-512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});

@@ -3,15 +3,25 @@ import json
 import os
 import re
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class Structured(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 class ParsedRequest(Structured):
-    budget: float | None = Field(default=None,ge=0)
+    date: str | None = Field(default=None,pattern=r"^\d{4}-\d{2}-\d{2}$")
+    time: str | None = Field(default=None,pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    budget: float | None = Field(default=None,ge=0,le=10000,allow_inf_nan=False)
     categories: list[str] = Field(default_factory=list)
     excluded: list[str] = Field(default_factory=list)
+
+    @field_validator('date')
+    @classmethod
+    def valid_date(cls,value):
+        if value is not None:
+            from datetime import date
+            date.fromisoformat(value)
+        return value
 
 class ExtractedFact(Structured):
     category: Literal['interests','dislikes','budget','experience']
@@ -101,7 +111,7 @@ class OpenAIAdapter:
 
     def parse(self,text):
         from backend.streams.H_conversation.service import parse_request
-        return self._call(ParsedRequest,{'task':'parse; budget is total EUR for two people','text':text},ParsedRequest(**parse_request(text)))
+        return self._call(ParsedRequest,{'task':'parse; budget is total EUR for two people; categories must be food,culture,concerts,cinema,outdoors,sport,workshops,nightlife,home,travel; resolve relative dates against today in Europe/Paris; unknown date/time null','today':__import__('datetime').datetime.now(__import__('zoneinfo').ZoneInfo('Europe/Paris')).date().isoformat(),'text':text},ParsedRequest(**parse_request(text)))
 
     def extract(self,text,owner_id):
         facts=[]
