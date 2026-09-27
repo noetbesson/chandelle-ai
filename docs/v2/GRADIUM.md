@@ -21,14 +21,14 @@ Ouvrir http://127.0.0.1:8000, terminer les deux entretiens si nécessaire, puis
 **Discover → Discuter avec Chandelle**. Le catalogue existant reste accessible.
 
 1. Chandelle demande votre envie de sortie et lit la question.
-2. Toucher le cercle vert pour parler et autoriser le micro (45 secondes maximum).
-3. Toucher de nouveau le cercle pour terminer : transcription et envoi automatiques, sans texte affiché.
+2. Toucher la chandelle pour parler et autoriser le micro (45 secondes maximum).
+3. Toucher de nouveau la chandelle pour terminer : transcription et envoi automatiques, sans texte affiché.
 4. Répondre au budget et aux précisions. Au troisième message, ou via
    **Voir ma recommandation**, le moteur actuel calcule et enregistre un programme.
 5. Ouvrir la fiche pour voir le créneau, les activités et le coût à deux.
 
 Le micro nécessite localhost ou HTTPS. Si la lecture automatique est bloquée,
-toucher le cercle pour lancer la lecture. Le texte reste utilisable sans Gradium ou si le
+toucher la chandelle pour lancer la lecture. Le texte reste utilisable sans Gradium ou si le
 micro/fournisseur est indisponible. Une absence de programme faisable est
 signalée ; aucune recommandation fictive n'est substituée au moteur.
 
@@ -88,10 +88,13 @@ points restent à vérifier avec la configuration locale de l'utilisateur.
 
 ## Interface vocale compacte
 
-Cercle bleu animé pendant la lecture réelle, vert lorsque le micro peut être
-activé et pendant l’enregistrement, violet pendant les traitements. Le libellé
+Chandelier SVG à trois bougies inspiré du dessin fourni : flammes dorées pendant
+la lecture, orangées pendant l’enregistrement, mauves pendant les traitements.
+Leur taille suit le volume sonore mesuré localement, avec retour progressif au
+repos dans les silences ; elle ne dépend pas de la durée de parole. Le micro
+n’est jamais envoyé aux haut-parleurs par cette visualisation. Le libellé
 indique aussi l’état. Un clic pendant la lecture l’interrompt pour parler.
 Pas de transcript visible ni de lecteur audio ; clavier et dernière réponse
 accessibles dans un volet fermé. Le bouton Quitter ferme micro/lecture et invalide
 les requêtes tardives. Animations désactivées si réduction des mouvements demandée.
-L’arrêt au silence n’est pas automatique : toucher le cercle termine la prise.
+L’arrêt au silence n’est pas automatique : toucher la chandelle termine la prise.

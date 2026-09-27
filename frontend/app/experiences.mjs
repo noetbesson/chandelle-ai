@@ -31,7 +31,7 @@ export async function availability(){
 }
 
 export async function submitExperience(form){
-  if(!['signal-import','signal-confirm','availability-add','calendar-import'].includes(form.id))return false;
+  if(!['reel-import','signal-import','signal-confirm','availability-add','calendar-import'].includes(form.id))return false;
   const identity=ctx.identity();
   const data=new FormData(form);
   if(form.id==='calendar-import'){
@@ -39,10 +39,7 @@ export async function submitExperience(form){
     const result=await ctx.api('/availability/google-calendar',{method:'POST',body:{url:String(data.get('url')||'').trim(),start_date:data.get('start_date'),days:Number(data.get('days')),daily_start:data.get('daily_start'),daily_end:data.get('daily_end')}});
     if(identity!==ctx.identity())return true;
     form.reset();await ctx.navigate('availability');ctx.notify(`${result.imported_slots} créneau(x) libre(s) importé(s).`);
-  if(!['reel-import','signal-import','signal-confirm','availability-add'].includes(form.id))return false;
-  const identity=ctx.identity();
-  const data=new FormData(form);
-  if(form.id==='reel-import'){
+  }else if(form.id==='reel-import'){
     const received=ctx.receivedVideo?.();
     if(received)data.set('video',received,received.name||'partage.mp4');
     const file=data.get('video');

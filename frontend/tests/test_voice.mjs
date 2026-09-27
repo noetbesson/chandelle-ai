@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import {configureVoice,voiceEntry,clickVoice,submitVoice,stopVoice,wavBytes} from '../app/voice.mjs';
+import {configureVoice,voiceEntry,clickVoice,submitVoice,stopVoice,wavBytes,voiceLevel} from '../app/voice.mjs';
 
 const nodes=new Map();
-const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',value:'',dataset:{},setAttribute(k,v){this[k]=v;},replaceChildren(){}});return nodes.get(selector);};
+const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',value:'',dataset:{},style:{values:{},setProperty(k,v){this.values[k]=v;}},setAttribute(k,v){this[k]=v;},replaceChildren(){}});return nodes.get(selector);};
 globalThis.document={querySelector:node,querySelectorAll:()=>[]};
 let identity='a',calls=[];
 const context={identity:()=>identity,escape:s=>s.replaceAll('<','&lt;'),planCard:p=>`PLAN ${p.id}`,
@@ -79,6 +79,42 @@ assert.deepEqual(calls.at(-1)[1].body.messages,['Une balade à deux']);
 assert.equal(node('#voice-orb').dataset.phase,'speaking');
 stopVoice();
 
+// Measured energy drives flames. Microphone analysis must never feed speakers.
+assert.equal(voiceLevel(new Float32Array([0,0])),0);
+assert.equal(voiceLevel(new Float32Array([.005,-.005])),0);
+assert.ok(voiceLevel(new Float32Array([.1,-.1]))>voiceLevel(new Float32Array([.03,-.03])));
+assert.equal(voiceLevel(new Float32Array([1,-1])),1);
+let amplitude=.12,frameNumber=0,closedContexts=0,mediaSources=0;
+const frames=new Map(),connections=[];
+globalThis.requestAnimationFrame=callback=>{frames.set(++frameNumber,callback);return frameNumber;};
+globalThis.cancelAnimationFrame=id=>frames.delete(id);
+const audioNode=kind=>({kind,connect(target){connections.push([kind,target.kind]);},disconnect(){}});
+globalThis.AudioContext=class {
+ constructor(){this.state='running';this.destination={kind:'speakers'};}
+ createAnalyser(){return {...audioNode('analyser'),getFloatTimeDomainData(samples){samples.fill(amplitude);}};}
+ createMediaElementSource(){mediaSources++;return audioNode('playback');}
+ createMediaStreamSource(){return audioNode('microphone');}
+ async close(){closedContexts++;}
+};
+await clickVoice({dataset:{action:'voice-open'}});
+assert.match(node('#voice-panel').innerHTML,/voice-candles/);
+assert.match(node('#voice-panel').innerHTML,/candle-flame/);
+assert.equal(node('#voice-orb').dataset.phase,'speaking');
+assert.ok(Number(node('#voice-orb').style.values['--voice-level'])>0);
+assert.ok(connections.some(([a,b])=>a==='analyser'&&b==='speakers'));
+playback.onwaiting();playback.onplaying();assert.equal(mediaSources,1,'Reuse the media source on rebuffer/play');
+playback.onended();assert.equal(frames.size,0);
+assert.equal(node('#voice-orb').style.values['--voice-level'],'0');
+connections.length=0;amplitude=.01;
+await clickVoice({dataset:{action:'voice-orb'}});
+assert.equal(node('#voice-orb').dataset.phase,'listening');
+assert.equal(Number(node('#voice-orb').style.values['--voice-level']),0);
+assert.ok(connections.some(([a,b])=>a==='microphone'&&b==='analyser'));
+assert.ok(!connections.some(([,b])=>b==='speakers'),'Never echo the microphone');
+amplitude=.18;const [frame,draw]=frames.entries().next().value;frames.delete(frame);draw();
+assert.ok(Number(node('#voice-orb').style.values['--voice-level'])>0);
+stopVoice();assert.equal(frames.size,0);assert.equal(closedContexts,1);
+
 // Signed PCM, mono downmix, sample rate and RIFF lengths match the server contract.
 const bytes=wavBytes({length:2,numberOfChannels:2,sampleRate:24000,getChannelData:c=>c===0?new Float32Array([1,-1]):new Float32Array([1,1])});
 const view=new DataView(bytes);
@@ -88,4 +124,4 @@ assert.equal(view.getUint16(22,true),1);
 assert.equal(view.getInt16(44,true),32767);
 assert.equal(view.getInt16(46,true),0);
 assert.equal(bytes.byteLength,48);
-console.log('Voice orb: playback states, automatic voice turns, plans, identity cancellation, microphone release and PCM WAV PASS');
+console.log('Voice chandelier: sound-reactive flames, playback/microphone routing, cleanup, turns, privacy and PCM WAV PASS');

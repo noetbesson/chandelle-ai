@@ -220,3 +220,9 @@ Le smoke historique scripts/live_openai_smoke.py exige toujours RUN_LIVE_OPENAI_
 ## Cache Discovery consultable
 
 `GET /api/v2/activities/real` requiert les deux entretiens terminés et retourne `{items:[Activity...],total}` depuis `backend/streams/C_discovery/data/activities.json`. Les Activity sont revalidées, sans appel réseau, et ne sont pas ajoutées à `v2_activities` ni aux candidats de planification. Le frontend les montre dans une section distincte avec lien vers `website`. Prix, horaires, coordonnées et score inconnus restent `null`. Un cache absent donne une liste vide.
+
+## Chandelier vocal
+
+Changement de présentation uniquement : contrats HTTP, WAV et stockage inchangés.
+Le niveau audio utilisé pour les flammes reste dans le navigateur. Les identifiants
+DOM/actions voice-orb sont conservés pour la compatibilité du contrôleur.

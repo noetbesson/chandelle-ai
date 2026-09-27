@@ -212,3 +212,35 @@ cache réel et le formulaire de recherche web dans Discover.
 
 Le quota de la recherche web interactive ne couvre pas automatiquement
 la commande de collecte importée de feature/discovery.
+
+## Chandelier vocal — 2026-09-27
+
+Le cercle de Discover est remplacé par un chandelier SVG à trois bougies,
+inspiré du dessin fourni. Flammes dorées pendant la lecture, orangées pendant
+l’enregistrement ; taille pilotée par le volume RMS local, lissé et borné.
+Web Audio analyse le micro sans retour aux haut-parleurs et la synthèse réellement
+lue. Fermeture : annulation des animations, déconnexion et fermeture du contexte.
+Réduction des mouvements respectée. API et dialogue par tours inchangés.
+
+Validation : `bash scripts/check.sh` → **193 passed in 18.87s**, suites Node
+et parcours API PASS. Aucun essai visuel/micro dans un navigateur réel ni appel
+Gradium live. Modifications locales, non publiées.
+
+Correction de chargement : la capture utilisateur montrait encore le cercle malgré
+le code neuf servi sur localhost. URLs CSS, app et module vocal versionnées
+`chandelier-1` pour contourner un ancien cache. Vérification HTTP locale des quatre
+ressources réussie ; affichage navigateur utilisateur restant à confirmer.
+
+## Publication chandelier avec la branche partagée — 2026-09-27
+
+Le premier push a été refusé : noe/memory distant avait intégré main. Reprise du
+commit chandelier sur cette base, conservation des ajouts Discovery réel, AI et
+PWA/Reels. Résolution des conflits de documentation, imports, HTML et CSS.
+La base distante contenait des restes de fusion empêchant le démarrage : fonctions
+JS dupliquées, branches calendar/reel imbriquées et ancien bloc Python après le
+retour de conversation. Raccordements corrigés en conservant journal, durée des
+souvenirs, calendrier, Reels et point d’entrée vocal dans Discovery réel.
+Dépendances déclarées de l’équipe installées dans le venv local.
+
+Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
+12 skipped, 5 subtests passed in 21.18s**, suites Node et parcours API PASS.
