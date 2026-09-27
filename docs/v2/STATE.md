@@ -244,3 +244,17 @@ Dépendances déclarées de l’équipe installées dans le venv local.
 
 Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
 12 skipped, 5 subtests passed in 21.18s**, suites Node et parcours API PASS.
+
+## Chargement frais de l’interface — 2026-09-27
+
+Après signalement persistant de l’ancien cercle, lecture HTTP du serveur local :
+HTML/module/CSS du chandelier présents mais sans Cache-Control ; le worker PWA
+conservait la CSS en cache-first. Ajout no-store sur pages et ressources UI ;
+les validateurs conditionnels sont ignorés sur ces routes pour toujours renvoyer
+les octets actuels. Worker public-v2 : icônes seules en cache, suppression de
+l’ancien cache, activation immédiate ; updateViaCache=none à l’enregistrement.
+Les profils et brouillons IndexedDB ne sont pas effacés. Un redémarrage normal
+du serveur et une ouverture/recharge normale suffisent pour appliquer la nouvelle
+politique ; aucun lien versionné à saisir ni nettoyage manuel du cache requis.
+Validation : 263 tests Python réussis, 12 ignorés, 5 sous-tests réussis ; suites
+Node/API PASS. Test dédié au cycle du worker PASS. Pas de navigateur réel testé.

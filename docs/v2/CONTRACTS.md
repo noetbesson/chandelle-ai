@@ -226,3 +226,10 @@ Le smoke historique scripts/live_openai_smoke.py exige toujours RUN_LIVE_OPENAI_
 Changement de présentation uniquement : contrats HTTP, WAV et stockage inchangés.
 Le niveau audio utilisé pour les flammes reste dans le navigateur. Les identifiants
 DOM/actions voice-orb sont conservés pour la compatibilité du contrôleur.
+
+## Livraison de l’interface locale
+
+Les pages /, /app, /installer, /partager, /sw.js et les fichiers HTML/JS/MJS/CSS
+sous /v2-static sont servis avec Cache-Control: no-store. Les requêtes
+conditionnelles reçoivent le contenu actuel (200). Le cache du service worker
+est réservé aux icônes publiques. Contrats API et stockage utilisateur inchangés.

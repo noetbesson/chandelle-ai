@@ -1,6 +1,23 @@
 """Public PWA delivery does not add an unauthenticated memory write endpoint."""
 import json
+import pytest
 from backend.tests.test_api import client,offline_only
+
+
+@pytest.mark.parametrize('path', ['/', '/app', '/v2-static/index.html',
+    '/v2-static/app.mjs', '/v2-static/voice.mjs?v=chandelier-1',
+    '/v2-static/style.css', '/v2-static/pwa.mjs', '/sw.js'])
+def test_frontend_reloads_even_with_old_browser_validators(client, path):
+    first = client.get(path)
+    assert first.status_code == 200
+    assert first.headers['cache-control'] == 'no-store'
+    again = client.get(path, headers={
+        'If-None-Match': first.headers['etag'],
+        'If-Modified-Since': first.headers['last-modified'],
+    })
+    assert again.status_code == 200
+    assert again.content == first.content
+    assert again.headers['cache-control'] == 'no-store'
 
 def test_manifest_worker_and_receiver(client):
     manifest=client.get('/manifest.json')

@@ -20,6 +20,24 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     service = ConversationService(DatePipeline(memory, DiscoveryService(LocalActivityRepository())))
     proactive = ProactiveService(service.pipeline)
     app = FastAPI(title="Chandelle Offline Demo", version="0.1.0")
+
+    @app.middleware('http')
+    async def fresh_frontend(request, call_next):
+        # Branch switches must not leave the browser running an older UI.
+        path = request.url.path
+        frontend = path in ('/', '/app', '/installer', '/partager', '/sw.js') or (
+            path.startswith('/v2-static/') and Path(path).suffix in ('.html', '.mjs', '.js', '.css')
+        )
+        if frontend:
+            request.scope['headers'] = [
+                (key, value) for key, value in request.scope['headers']
+                if key.lower() not in (b'if-none-match', b'if-modified-since')
+            ]
+        response = await call_next(request)
+        if frontend:
+            response.headers['Cache-Control'] = 'no-store'
+        return response
+
     app.state.conversation = service
     static_dir = Path(__file__).with_name("static")
     app.mount("/static", StaticFiles(directory=static_dir), name="static")

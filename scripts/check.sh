@@ -18,6 +18,7 @@ node --check frontend/app/ai.mjs
 node frontend/tests/test_ui.mjs
 node frontend/tests/test_experiences.mjs
 node frontend/tests/test_share.mjs
+node frontend/tests/test_asset_cache.mjs
 node --check frontend/app/share-page.mjs
 node --check frontend/app/share-store.mjs
 node --check frontend/app/pwa.mjs
