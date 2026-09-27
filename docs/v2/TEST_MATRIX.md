@@ -294,3 +294,35 @@ Les résultats ci-dessus sont historiques et ne valident pas la présente
 fusion. Après résolution des conflits, relancer les tests Python des
 deux branches, les tests JavaScript et le parcours Discover combiné.
 Ne pas additionner les nombres de tests annoncés.
+
+## Chandelier vocal — 2026-09-27
+
+- `node --check frontend/app/voice.mjs` : code 0.
+- `node frontend/tests/test_voice.mjs` : PASS ; seuil/bruit, saturation, amplitude,
+  analyse lecture/micro, réutilisation de source, absence de retour micro vers
+  haut-parleurs et nettoyage du contexte/animation (Web Audio simulé).
+- `bash scripts/check.sh` : code 0, **193 passed in 18.87s**, suites Node et
+  parcours API frontend PASS.
+- Aucun test visuel ou micro dans un navigateur réel, aucun appel Gradium live.
+
+## Rechargement du chandelier
+
+- `bash scripts/check.sh` : code 0, **193 passed in 18.59s**, suites Node et
+  parcours API PASS.
+- Lecture HTTP du serveur localhost:8000 : document, app, module vocal et CSS
+  versionnés contiennent les références et marqueurs du chandelier attendus.
+- Pas de validation visuelle dans un navigateur réel.
+
+## Intégration avant publication chandelier
+
+- Première suite après rebase : échec de collecte (dotenv/ffmpeg manquants et
+  bloc Python mal indenté préexistant sur la branche distante).
+- Installation des dépendances déjà déclarées avec
+  `uv pip install --python .venv/bin/python -r backend/requirements.txt`.
+- Après retrait du bloc Python dupliqué : 255 passed, 12 skipped, 5 subtests
+  passed in 21.51s ; suite interrompue ensuite par fonctions JS dupliquées.
+- Après raccordement frontend : suites Node UI, experiences, voice, AI et share
+  PASS ; syntaxe app/experiences PASS.
+
+Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
+12 skipped, 5 subtests passed in 21.18s**, suites Node et parcours API PASS.

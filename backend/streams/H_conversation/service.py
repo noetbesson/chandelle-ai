@@ -193,24 +193,3 @@ class ConversationService:
                      encoded([f['id'] for f in facts]), adapter.last_mode))
         return {'conversation_id': sid, 'interaction_id': iid, 'facts': facts,
                 'mode': adapter.last_mode, 'replayed': False}
-            c.execute('INSERT INTO v2_conversations VALUES(?,?,?,?)',(sid,member['couple_id'],member['id'],now()))
-            c.execute('INSERT INTO v2_messages VALUES(?,?,?,?,?)',(uuid4().hex,sid,member['id'],body.text,now()))
-        facts=[]
-        existing=self.memory.list_facts(member['couple_id'],'PERSON',member['id'],member['id'])
-        for f in extraction.facts:
-            if f.confidence < .7:continue
-            canonical, negative=interests(f.value)
-            values=canonical or negative or [f.value]
-            value={'values':values,'horizon':'durable' if f.category=='dislikes' else getattr(f,'horizon','durable'),'signal_at':now()}
-            if f.category=='budget':
-                budget=parse_request(f.value)['budget']
-                if budget is None or not re.search(r'par personne|chacun|per person|each|pour deux|for two|couple|total',normalize(f.value)):continue
-                value={'max':budget,'unit':'couple','flexible':False}
-            key='discussion:'+f.category+':'+hashlib.sha256(str(values).encode()).hexdigest()[:20]
-            previous=next((old for old in existing if old['key']==key and old['privacy_scope']==body.privacy_scope),None)
-            if previous:
-                facts.append(previous)
-                continue
-            facts.append(self.memory.ingest(member['couple_id'],'PERSON',member['id'],member['id'],f.category,key,value,body.privacy_scope,'conversation',confidence=f.confidence))
-        return {'conversation_id':sid,'facts':facts,'mode':adapter.last_mode,'fallback':adapter.last_fallback,
-                'reply':f"{len(facts)} information(s) retenue(s). Vous pouvez les corriger ou les supprimer dans votre mémoire." if facts else "Je n’ai pas identifié de préférence explicite à retenir. Dites par exemple : j’aime le jazz, ou je préfère éviter les lieux bruyants."}

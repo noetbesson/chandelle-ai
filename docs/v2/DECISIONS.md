@@ -109,3 +109,20 @@
 
 
 31. Discovery réel : exposer le cache Activity validé via `GET /api/v2/activities/real` et l’afficher séparément des 76 exemples fictifs. Aucun chargement web au démarrage ou à l’affichage. Les fiches sans prix, durée ou coordonnées restent consultables avec lien source, mais ne deviennent pas des candidats E : aucune donnée de planification n’est inventée.
+
+43. Remplacer le cercle par un dessin SVG natif, avec flammes ancrées sur les
+    mèches. Mesurer le volume micro/lecture avec Web Audio, seuil de bruit,
+    attaque rapide et retour progressif. Aucun nouvel envoi ni stockage des
+    mesures. Ne jamais connecter le micro à la sortie audio ; réutiliser la
+    source de chaque lecteur et libérer le contexte à la fermeture.
+    Conserver les états textuels accessibles et respecter reduced-motion.
+
+44. Versionner les URLs des ressources modifiées (CSS, app et import vocal) pour
+    forcer leur rechargement ensemble. Une version sur le seul document HTML ne
+    suffit pas à renouveler les imports JavaScript déjà en cache.
+
+45. Publication sur noe/memory : rejouer le commit local sur l’historique distant
+    sans push forcé. Conserver les fonctionnalités des deux côtés ; retirer les
+    doublons de fusion qui bloquent la syntaxe, garder le traitement conversation
+    transactionnel/idempotent et réunir calendar-import/reel-import dans le même
+    contrôleur. Aucun changement aux contrats partagés de l’équipe.
