@@ -408,3 +408,32 @@ racine (valeurs jamais affichées). Le lanceur Windows charge maintenant GRADIUM
 Point de reprise : guide GRADIUM.md pour configurer un compte de test, redémarrer
 le serveur utilisateur, puis tester réellement micro/transcription/synthèse.
 La fusion est locale ; aucun push ni déploiement effectué pendant cette opération.
+
+
+## Chargement frais de l’interface — 2026-09-27
+
+Après signalement persistant de l’ancien cercle, lecture HTTP du serveur local :
+HTML/module/CSS du chandelier présents mais sans Cache-Control ; le worker PWA
+conservait la CSS en cache-first. Ajout no-store sur pages et ressources UI ;
+les validateurs conditionnels sont ignorés sur ces routes pour toujours renvoyer
+les octets actuels. Worker public-v2 : icônes seules en cache, suppression de
+l’ancien cache, activation immédiate ; updateViaCache=none à l’enregistrement.
+Les profils et brouillons IndexedDB ne sont pas effacés. Un redémarrage normal
+du serveur et une ouverture/recharge normale suffisent pour appliquer la nouvelle
+politique ; aucun lien versionné à saisir ni nettoyage manuel du cache requis.
+Validation : 263 tests Python réussis, 12 ignorés, 5 sous-tests réussis ; suites
+Node/API PASS. Test dédié au cycle du worker PASS. Pas de navigateur réel testé.
+## Rejet du push et correction de cache intégrée, 27 septembre 2026
+
+Le push utilisateur de main a été refusé car origin/main avait reçu la PR 6
+(1505aa3, correction de cache 117cb8b) depuis notre fusion b9f9975. Récupération
+puis fusion des deux historiques, sans reset ni force-push. Les conflits de
+documentation conservent les deux suivis. FastAPI garde le flux web existant et
+reçoit le middleware no-store de Noé ; le worker v4 ne conserve que les icônes
+et retire les anciens caches v1/v2/v3. Aucun changement des données personnelles.
+
+Validation de ce delta : 35 tests Python ciblés, neuf suites Node et parcours
+Edge mobile passent ; fournisseur simulé uniquement. Les 313 tests de la fusion
+précédente restent sa référence complète, sans prétendre à une nouvelle exécution
+intégrale pour ce delta de cache. Le lancement Windows doit être redémarré pour
+charger la nouvelle politique HTTP. Configuration Gradium inchangée.

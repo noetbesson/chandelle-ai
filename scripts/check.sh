@@ -24,6 +24,8 @@ node frontend/tests/test_activity_cards.mjs
 .venv/bin/python scripts/generate_date_contract.py --check
 node frontend/node_modules/typescript/bin/tsc -p frontend/tsconfig.json --noEmit
 node --check frontend/app/calendar.mjs
+
+node frontend/tests/test_asset_cache.mjs
 node --check frontend/app/share-page.mjs
 node --check frontend/app/share-store.mjs
 node --check frontend/app/pwa.mjs

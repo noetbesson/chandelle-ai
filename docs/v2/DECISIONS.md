@@ -239,3 +239,16 @@ Conserver le front sans framework ; écrire le deck en .mts strict et fournir le
   offres simulées sur le deuxième jour libre, sans dépendre de l'ancien catalogue.
 - Étendre la liste des paramètres acceptés par run_ai.ps1 à GRADIUM_ sans activer
   la voix ou créer de secrets. Les tests du fournisseur restent simulés.
+
+
+46. En développement local, les pages, modules JS et CSS doivent provenir du
+    disque à chaque chargement : no-store et pas de 304 sur ces routes. Le worker
+    ne conserve que les icônes, purge son ancien cache public et s’active aussitôt.
+    Ne pas effacer les données utilisateur pour résoudre un problème de cache UI.
+## Intégration de la PR 6 après rejet du push
+
+Fusionner origin/main au lieu d'écraser l'historique partagé. Conserver le nom
+Chandelle et les routes de recherche réelles, ajouter le middleware no-store de
+Noé. Cache des icônes renommé v4 pour retirer les versions v1, v2 et v3 issues des
+deux branches ; le test du worker vérifie leur suppression et préserve les caches
+d'autres applications. Aucun changement aux brouillons privés IndexedDB.

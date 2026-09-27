@@ -515,3 +515,29 @@ incompatibilités avec l'ancien parcours catalogue : corrigés avant la suite
 complète. Le test navigateur a été ajusté aux sélecteurs réels du journal et de
 la navigation avant son passage final. Aucun test live Gradium ni OAuth, aucun
 appel payant OpenAI ; ces validations ne prouvent pas la connexion d'un compte.
+
+
+## Correction du cache de l’interface
+
+- Lecture HTTP localhost:8000 avant correction : cinq ressources accessibles,
+  chandelier présent ; pas de Cache-Control pour HTML/app/voice/CSS.
+- `bash scripts/check.sh` : code 0, **263 passed, 12 skipped, 5 subtests passed
+  in 23.16s**, suites Node et parcours API PASS. Huit cas HTTP vérifient no-store
+  et réponse 200 complète malgré les anciens validateurs du navigateur.
+- `node frontend/tests/test_asset_cache.mjs` : PASS ; installation/activation
+  du vrai worker dans VM, purge de l’ancien cache uniquement, passage réseau pour
+  pages/modules/CSS/API, cache d’icônes conservé. Ajouté à scripts/check.sh.
+- Aucun appel Gradium live ni validation visuelle dans un navigateur réel.
+## Fusion du correctif cache 1505aa3, 27 septembre 2026
+
+- `.venv\Scripts\python.exe scripts/test_offline.py backend/tests/test_pwa.py backend/tests/test_voice.py backend/tests/test_web_pipeline.py --tb=short --basetemp .runtime/merge-cache-tests` : **35 passed in 36.17s**, sortie `.runtime/merge-cache-tests.txt`.
+- Neuf suites `frontend/tests/test_*.mjs` : PASS, dont test_asset_cache.mjs :
+  activation immédiate, suppression des anciens caches v1/v2/v3, HTML/JS/CSS/API
+  hors cache du worker, icônes conservées.
+- `scripts/verify_frontend_api.py` : PASS.
+- Parcours Edge 375 px relancé via le harness du workspace
+  `.runtime/run_merge_browser.py` : PASS. Chandelier, dialogue clavier, cartes,
+  sélection, fermeture, Discover, journal, OAuth/iCal. Fournisseur simulé ; aucun
+  appel payant. Serveur temporaire 8332 arrêté après le test.
+- `git diff --check` : PASS. Les nouvelles vérifications sont ciblées sur le delta
+  du cache ; la suite complète précédente avait 313 tests passants.

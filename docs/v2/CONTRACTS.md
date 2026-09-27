@@ -329,3 +329,11 @@ les fournisseurs OAuth et google_ical_import. automatic_sync=false concerne
 l'absence de synchronisation automatique des événements ; l'import iCal reste
 ponctuel. Aucun secret n'est retourné. `/conversations` accepte toujours auto,
 ainsi que les champs conversation_id/idempotency_key/horizon/learn de Noé.
+
+
+## Livraison de l’interface locale
+
+Les pages /, /app, /installer, /partager, /sw.js et les fichiers HTML/JS/MJS/CSS
+sous /v2-static sont servis avec Cache-Control: no-store. Les requêtes
+conditionnelles reçoivent le contenu actuel (200). Le cache du service worker
+est réservé aux icônes publiques. Contrats API et stockage utilisateur inchangés.
