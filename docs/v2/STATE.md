@@ -751,3 +751,12 @@ TypeScript, parcours API et diff PASS. Les 35 changements ont été inspectés p
 les clés locales et clés privées sans exposer leurs valeurs ; .env reste ignoré.
 Le serveur lancé par l'agent a depuis été arrêté à la demande de l'utilisateur,
 qui le démarre maintenant depuis son propre terminal avec run_voice.sh.
+
+## Plafonds locaux relevés à la demande utilisateur — 27 septembre 2026
+
+Le .env privé passe de OPENAI_DAILY_RESERVE_USD=1 / OPENAI_TOTAL_RESERVE_USD=10
+à 10 / 40, maximums déjà acceptés par AIBudget. Validation par le chargeur réel
+et AIBudget.limits(), sans requête payante : configuration valide, autres valeurs
+et clés inchangées. Ces réserves internes ne constituent pas une facture OpenAI.
+Le serveur lancé dans le terminal utilisateur doit être redémarré pour les lire.
+Aucune modification du code de quota, aucun effacement des consommations passées.
