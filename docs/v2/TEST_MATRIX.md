@@ -326,3 +326,15 @@ Ne pas additionner les nombres de tests annoncés.
 
 Validation finale intégrée : `bash scripts/check.sh` code 0 ; **255 passed,
 12 skipped, 5 subtests passed in 21.18s**, suites Node et parcours API PASS.
+
+## Correction du cache de l’interface
+
+- Lecture HTTP localhost:8000 avant correction : cinq ressources accessibles,
+  chandelier présent ; pas de Cache-Control pour HTML/app/voice/CSS.
+- `bash scripts/check.sh` : code 0, **263 passed, 12 skipped, 5 subtests passed
+  in 23.16s**, suites Node et parcours API PASS. Huit cas HTTP vérifient no-store
+  et réponse 200 complète malgré les anciens validateurs du navigateur.
+- `node frontend/tests/test_asset_cache.mjs` : PASS ; installation/activation
+  du vrai worker dans VM, purge de l’ancien cache uniquement, passage réseau pour
+  pages/modules/CSS/API, cache d’icônes conservé. Ajouté à scripts/check.sh.
+- Aucun appel Gradium live ni validation visuelle dans un navigateur réel.

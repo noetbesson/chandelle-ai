@@ -126,3 +126,8 @@
     doublons de fusion qui bloquent la syntaxe, garder le traitement conversation
     transactionnel/idempotent et réunir calendar-import/reel-import dans le même
     contrôleur. Aucun changement aux contrats partagés de l’équipe.
+
+46. En développement local, les pages, modules JS et CSS doivent provenir du
+    disque à chaque chargement : no-store et pas de 304 sur ces routes. Le worker
+    ne conserve que les icônes, purge son ancien cache public et s’active aussitôt.
+    Ne pas effacer les données utilisateur pour résoudre un problème de cache UI.
